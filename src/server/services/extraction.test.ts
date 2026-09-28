@@ -23,7 +23,8 @@ function mockFetch(body: string, status = 200): typeof fetch {
 }
 
 function mockFetchStatus(status: number): typeof fetch {
-  return (async () => new Response('nope', { status })) as unknown as typeof fetch
+  return (async () =>
+    new Response('nope', { status })) as unknown as typeof fetch
 }
 
 function mockFetchThrows(error: Error): typeof fetch {
@@ -54,9 +55,9 @@ describe('extractSheet failure paths (no database needed)', () => {
       return new Response('')
     }) as unknown as typeof fetch
 
-    expect(await code(extractSheet('https://example.com/x', { fetchImpl }))).toBe(
-      'INVALID_URL',
-    )
+    expect(
+      await code(extractSheet('https://example.com/x', { fetchImpl })),
+    ).toBe('INVALID_URL')
     expect(called).toBe(false)
   })
 
@@ -68,9 +69,7 @@ describe('extractSheet failure paths (no database needed)', () => {
 
   it('maps an HTTP error to SHEET_NOT_ACCESSIBLE', async () => {
     expect(
-      await code(
-        extractSheet(URL, { fetchImpl: mockFetchStatus(404) }),
-      ),
+      await code(extractSheet(URL, { fetchImpl: mockFetchStatus(404) })),
     ).toBe('SHEET_NOT_ACCESSIBLE')
   })
 

@@ -15,9 +15,8 @@ if (!process.env.DATABASE_URL) {
     if (!existsSync(file)) continue
 
     for (const line of readFileSync(file, 'utf8').split(/\r?\n/)) {
-      const match = /^\s*(?:export\s+)?([A-Za-z_][A-Za-z0-9_]*)\s*=\s*(.*?)\s*$/.exec(
-        line,
-      )
+      const match =
+        /^\s*(?:export\s+)?([A-Za-z_][A-Za-z0-9_]*)\s*=\s*(.*?)\s*$/.exec(line)
       if (!match) continue
 
       const key = match[1]

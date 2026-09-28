@@ -49,9 +49,7 @@ export function parseGoogleSheetUrl(url: string): GoogleSheetReference {
     throw invalid(`hostname: ${parsed.hostname}`)
   }
 
-  const match = parsed.pathname.match(
-    /^\/spreadsheets\/d\/([A-Za-z0-9_-]+)\b/,
-  )
+  const match = parsed.pathname.match(/^\/spreadsheets\/d\/([A-Za-z0-9_-]+)\b/)
   if (!match) {
     throw invalid(`pathname: ${parsed.pathname}`)
   }

@@ -35,23 +35,20 @@ export async function parseSheetCsv(
 
   // `to: maxRows + 1` lets csv-parse stop reading as soon as the limit is passed
   // instead of materialising an unbounded sheet in memory.
-  const parser = parse(
-    csv,
-    {
-      bom: true,
-      columns: (header: string[]) => {
-        headers = normalizeHeaders(header)
-        return headers
-      },
-      // `relax_*` stops a single stray quote or ragged row from failing the whole
-      // extraction; a best-effort row beats a hard failure for an MVP tool.
-      relax_column_count: true,
-      relax_quotes: true,
-      skip_empty_lines: true,
-      trim: true,
-      to: maxRows + 1,
+  const parser = parse(csv, {
+    bom: true,
+    columns: (header: string[]) => {
+      headers = normalizeHeaders(header)
+      return headers
     },
-  )
+    // `relax_*` stops a single stray quote or ragged row from failing the whole
+    // extraction; a best-effort row beats a hard failure for an MVP tool.
+    relax_column_count: true,
+    relax_quotes: true,
+    skip_empty_lines: true,
+    trim: true,
+    to: maxRows + 1,
+  })
 
   try {
     for await (const record of parser) {

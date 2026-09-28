@@ -27,7 +27,8 @@ export function getPrisma(): PrismaClient {
     const adapter = new PrismaPg({ connectionString: getDatabaseUrl() })
     globalForPrisma.prisma = new PrismaClient({
       adapter,
-      log: process.env.NODE_ENV === 'development' ? ['warn', 'error'] : ['error'],
+      log:
+        process.env.NODE_ENV === 'development' ? ['warn', 'error'] : ['error'],
     })
   }
   return globalForPrisma.prisma

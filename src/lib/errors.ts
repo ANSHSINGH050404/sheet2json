@@ -10,11 +10,7 @@ export class AppError extends Error {
   readonly code: AppErrorPayload['code']
   override readonly cause: unknown
 
-  constructor(
-    code: AppErrorPayload['code'],
-    message: string,
-    cause?: unknown,
-  ) {
+  constructor(code: AppErrorPayload['code'], message: string, cause?: unknown) {
     super(message)
     this.name = 'AppError'
     this.code = code

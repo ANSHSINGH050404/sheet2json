@@ -53,7 +53,8 @@ export function formatRelative(iso: string, now: number = Date.now()): string {
     lastIndex = i
   }
 
-  const unit = lastIndex === -1 ? 'second' : units[lastIndex]?.unit ?? 'second'
+  const unit =
+    lastIndex === -1 ? 'second' : (units[lastIndex]?.unit ?? 'second')
   const rounded = Math.round(value)
   if (rounded === 0) return 'just now'
   // Intl renders negative deltas as "... ago" and positive ones as "in ...".

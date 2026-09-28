@@ -65,9 +65,13 @@ describe('parseSheetCsv', () => {
   })
 
   it('preserves Unicode', async () => {
-    const result = await parseSheetCsv('名前,emoji\n"日本語テキスト","\u{1F389}"')
+    const result = await parseSheetCsv(
+      '名前,emoji\n"日本語テキスト","\u{1F389}"',
+    )
 
-    expect(result.rows).toEqual([{ 名前: '日本語テキスト', emoji: '\u{1F389}' }])
+    expect(result.rows).toEqual([
+      { 名前: '日本語テキスト', emoji: '\u{1F389}' },
+    ])
   })
 
   it('strips a UTF-8 BOM from the first header', async () => {
@@ -128,9 +132,9 @@ describe('parseSheetCsv', () => {
   })
 
   it('treats an HTML sign-in page as an inaccessible sheet', async () => {
-    expect(await code(parseSheetCsv('<!DOCTYPE html><html>Sign in</html>'))).toBe(
-      'SHEET_NOT_ACCESSIBLE',
-    )
+    expect(
+      await code(parseSheetCsv('<!DOCTYPE html><html>Sign in</html>')),
+    ).toBe('SHEET_NOT_ACCESSIBLE')
   })
 
   it('rejects malformed CSV', async () => {
@@ -156,7 +160,9 @@ describe('parseSheetCsv', () => {
   })
 
   it('rejects a sheet far larger than maxRows rather than truncating it', async () => {
-    const csv = ['a', ...Array.from({ length: 500 }, (_, i) => String(i))].join('\n')
+    const csv = ['a', ...Array.from({ length: 500 }, (_, i) => String(i))].join(
+      '\n',
+    )
 
     expect(await code(parseSheetCsv(csv, { maxRows: 100 }))).toBe(
       'SHEET_TOO_LARGE',
@@ -165,7 +171,10 @@ describe('parseSheetCsv', () => {
 
   it('never returns more rows than the limit allows', async () => {
     for (const maxRows of [1, 5, 50]) {
-      const csv = ['a', ...Array.from({ length: maxRows }, (_, i) => String(i))].join('\n')
+      const csv = [
+        'a',
+        ...Array.from({ length: maxRows }, (_, i) => String(i)),
+      ].join('\n')
       const result = await parseSheetCsv(csv, { maxRows })
       expect(result.rowCount).toBe(maxRows)
     }

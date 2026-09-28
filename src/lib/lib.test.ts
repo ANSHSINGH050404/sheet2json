@@ -29,7 +29,11 @@ describe('extractInputSchema', () => {
 describe('toAppError', () => {
   it('passes an AppError through with only its safe fields', () => {
     const error = toAppError(
-      new AppError('INVALID_URL', "This doesn't appear to be a valid Google Sheets URL.", 'https://secret.internal/path'),
+      new AppError(
+        'INVALID_URL',
+        "This doesn't appear to be a valid Google Sheets URL.",
+        'https://secret.internal/path',
+      ),
     )
 
     expect(error).toEqual({
@@ -40,7 +44,9 @@ describe('toAppError', () => {
   })
 
   it('hides unexpected errors behind a generic message', () => {
-    const error = toAppError(new TypeError('connect ECONNREFUSED 10.0.0.5:5432'))
+    const error = toAppError(
+      new TypeError('connect ECONNREFUSED 10.0.0.5:5432'),
+    )
 
     expect(error).toEqual({
       code: 'INTERNAL_ERROR',

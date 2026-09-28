@@ -11,9 +11,7 @@ const ID = '1BxiMVs0XRA5nFMdKvBdBZjgmUUqptlbs74OgvE2upms'
 describe('parseGoogleSheetUrl', () => {
   it('extracts the spreadsheet id from an /edit url', () => {
     expect(
-      parseGoogleSheetUrl(
-        `https://docs.google.com/spreadsheets/d/${ID}/edit`,
-      ),
+      parseGoogleSheetUrl(`https://docs.google.com/spreadsheets/d/${ID}/edit`),
     ).toEqual({ spreadsheetId: ID, gid: null })
   })
 
@@ -51,7 +49,9 @@ describe('parseGoogleSheetUrl', () => {
 
   it('tolerates surrounding whitespace and a bare gid fragment', () => {
     expect(
-      parseGoogleSheetUrl(`  https://docs.google.com/spreadsheets/d/${ID}#gid=9  `),
+      parseGoogleSheetUrl(
+        `  https://docs.google.com/spreadsheets/d/${ID}#gid=9  `,
+      ),
     ).toEqual({ spreadsheetId: ID, gid: '9' })
   })
 
@@ -62,20 +62,24 @@ describe('parseGoogleSheetUrl', () => {
   })
 
   it('rejects the bare google.com host', () => {
-    expect(() => parseGoogleSheetUrl(`https://google.com/spreadsheets/d/${ID}`)).toThrow(
-      /doesn't appear to be a valid Google Sheets URL/,
-    )
+    expect(() =>
+      parseGoogleSheetUrl(`https://google.com/spreadsheets/d/${ID}`),
+    ).toThrow(/doesn't appear to be a valid Google Sheets URL/)
   })
 
   it('rejects a look-alike host that merely ends in docs.google.com', () => {
     expect(() =>
-      parseGoogleSheetUrl(`https://evil-docs.google.com.attacker.test/spreadsheets/d/${ID}`),
+      parseGoogleSheetUrl(
+        `https://evil-docs.google.com.attacker.test/spreadsheets/d/${ID}`,
+      ),
     ).toThrow(AppError)
   })
 
   it('rejects a host that smuggles the real host as userinfo', () => {
     expect(() =>
-      parseGoogleSheetUrl(`https://docs.google.com@evil.test/spreadsheets/d/${ID}`),
+      parseGoogleSheetUrl(
+        `https://docs.google.com@evil.test/spreadsheets/d/${ID}`,
+      ),
     ).toThrow(AppError)
   })
 
@@ -87,7 +91,9 @@ describe('parseGoogleSheetUrl', () => {
 
   it('rejects a non-http protocol', () => {
     expect(() =>
-      parseGoogleSheetUrl(`javascript:alert(1)//docs.google.com/spreadsheets/d/${ID}`),
+      parseGoogleSheetUrl(
+        `javascript:alert(1)//docs.google.com/spreadsheets/d/${ID}`,
+      ),
     ).toThrow(AppError)
   })
 
@@ -104,9 +110,9 @@ describe('parseGoogleSheetUrl', () => {
   })
 
   it('rejects a spreadsheet path with no id', () => {
-    expect(() => parseGoogleSheetUrl('https://docs.google.com/spreadsheets/d/')).toThrow(
-      AppError,
-    )
+    expect(() =>
+      parseGoogleSheetUrl('https://docs.google.com/spreadsheets/d/'),
+    ).toThrow(AppError)
     expect(() =>
       parseGoogleSheetUrl('https://docs.google.com/spreadsheets/edit#gid=1'),
     ).toThrow(AppError)
@@ -154,10 +160,14 @@ describe('extractSheetTitle', () => {
   })
 
   it('returns null when there is no title', () => {
-    expect(extractSheetTitle(`https://docs.google.com/spreadsheets/d/${ID}/edit`)).toBeNull()
+    expect(
+      extractSheetTitle(`https://docs.google.com/spreadsheets/d/${ID}/edit`),
+    ).toBeNull()
     expect(extractSheetTitle('nonsense')).toBeNull()
     expect(
-      extractSheetTitle(`https://docs.google.com/spreadsheets/d/${ID}#gid=1&title=`),
+      extractSheetTitle(
+        `https://docs.google.com/spreadsheets/d/${ID}#gid=1&title=`,
+      ),
     ).toBeNull()
   })
 })

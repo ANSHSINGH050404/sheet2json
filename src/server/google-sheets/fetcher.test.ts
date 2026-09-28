@@ -9,9 +9,10 @@ const REFERENCE: GoogleSheetReference = {
   gid: null,
 }
 
-function mockFetch(
-  handler: (url: string) => Response | Promise<Response>,
-): { impl: typeof fetch; calls: string[] } {
+function mockFetch(handler: (url: string) => Response | Promise<Response>): {
+  impl: typeof fetch
+  calls: string[]
+} {
   const calls: string[] = []
   const impl = (async (input: RequestInfo | URL) => {
     const url = typeof input === 'string' ? input : String(input)
@@ -77,9 +78,7 @@ describe('fetchSheetCsv', () => {
 
   it('maps 401, 403 and 404 to SHEET_NOT_ACCESSIBLE', async () => {
     for (const status of [401, 403, 404]) {
-      const { impl } = mockFetch(
-        () => new Response('nope', { status }),
-      )
+      const { impl } = mockFetch(() => new Response('nope', { status }))
       expect(await code(fetchSheetCsv(REFERENCE, { fetchImpl: impl }))).toBe(
         'SHEET_NOT_ACCESSIBLE',
       )
@@ -124,9 +123,7 @@ describe('fetchSheetCsv', () => {
     )
 
     expect(
-      await code(
-        fetchSheetCsv(REFERENCE, { fetchImpl: impl, maxBytes: 1024 }),
-      ),
+      await code(fetchSheetCsv(REFERENCE, { fetchImpl: impl, maxBytes: 1024 })),
     ).toBe('SHEET_TOO_LARGE')
   })
 
@@ -139,14 +136,10 @@ describe('fetchSheetCsv', () => {
         controller.close()
       },
     })
-    const { impl } = mockFetch(
-      () => new Response(stream, { status: 200 }),
-    )
+    const { impl } = mockFetch(() => new Response(stream, { status: 200 }))
 
     expect(
-      await code(
-        fetchSheetCsv(REFERENCE, { fetchImpl: impl, maxBytes: 1024 }),
-      ),
+      await code(fetchSheetCsv(REFERENCE, { fetchImpl: impl, maxBytes: 1024 })),
     ).toBe('SHEET_TOO_LARGE')
   })
 
@@ -177,7 +170,8 @@ describe('fetchSheetCsv', () => {
       expect(appError.message).not.toContain('SECRET')
       expect(appError.toJSON()).toEqual({
         code: 'FETCH_FAILED',
-        message: 'Google Sheets returned an unexpected response. Please try again.',
+        message:
+          'Google Sheets returned an unexpected response. Please try again.',
       })
     }
   })
