@@ -3,6 +3,8 @@ import type { KeyboardEvent } from 'react'
 
 import { DataTable } from '#components/data-table'
 import { JsonViewer } from '#components/json-viewer'
+import { ShareActions } from '#components/share-actions'
+import { SheetAssistant } from '#components/sheet-assistant'
 import { describeExtraction, formatCount } from '#lib/format'
 import type { ExtractionDetail } from '#lib/types'
 
@@ -88,6 +90,8 @@ export function ResultPanel({ extraction, action }: ResultPanelProps) {
             </dd>
           </div>
         </dl>
+
+        <ShareActions sourceUrl={extraction.sourceUrl} />
       </div>
 
       <div className="px-4 py-4 sm:px-5">
@@ -141,6 +145,14 @@ export function ResultPanel({ extraction, action }: ResultPanelProps) {
             />
           )}
         </div>
+      </div>
+
+      <div className="space-y-5 border-t border-line px-4 py-4 sm:px-5">
+        <SheetAssistant
+          rows={extraction.data}
+          title={extraction.title ?? extraction.spreadsheetId}
+          dataVersion={extraction.createdAt}
+        />
       </div>
     </section>
   )

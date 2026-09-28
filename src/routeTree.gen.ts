@@ -14,6 +14,7 @@ import { Route as DocsRouteImport } from './routes/docs'
 import { Route as ExtractRouteImport } from './routes/extract'
 import { Route as HistoryRouteImport } from './routes/history'
 import { Route as SettingsRouteImport } from './routes/settings'
+import { Route as ViewRouteImport } from './routes/view'
 import { Route as AuthGoogleRouteImport } from './routes/auth.google'
 import { Route as AuthSignOutRouteImport } from './routes/auth.sign-out'
 import { Route as HistoryIndexRouteImport } from './routes/history.index'
@@ -48,6 +49,11 @@ const HistoryRoute = HistoryRouteImport.update({
 const SettingsRoute = SettingsRouteImport.update({
   id: '/settings',
   path: '/settings',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const ViewRoute = ViewRouteImport.update({
+  id: '/view',
+  path: '/view',
   getParentRoute: () => rootRouteImport,
 } as any)
 const AuthGoogleRoute = AuthGoogleRouteImport.update({
@@ -108,6 +114,7 @@ export interface FileRoutesByFullPath {
   '/extract': typeof ExtractRoute
   '/history': typeof HistoryRouteWithChildren
   '/settings': typeof SettingsRoute
+  '/view': typeof ViewRoute
   '/auth/google': typeof AuthGoogleRouteWithChildren
   '/auth/sign-out': typeof AuthSignOutRoute
   '/history/$extractionId': typeof HistoryExtractionIdRoute
@@ -124,6 +131,7 @@ export interface FileRoutesByTo {
   '/docs': typeof DocsRoute
   '/extract': typeof ExtractRoute
   '/settings': typeof SettingsRoute
+  '/view': typeof ViewRoute
   '/auth/google': typeof AuthGoogleRouteWithChildren
   '/auth/sign-out': typeof AuthSignOutRoute
   '/history/$extractionId': typeof HistoryExtractionIdRoute
@@ -142,6 +150,7 @@ export interface FileRoutesById {
   '/extract': typeof ExtractRoute
   '/history': typeof HistoryRouteWithChildren
   '/settings': typeof SettingsRoute
+  '/view': typeof ViewRoute
   '/auth/google': typeof AuthGoogleRouteWithChildren
   '/auth/sign-out': typeof AuthSignOutRoute
   '/history/$extractionId': typeof HistoryExtractionIdRoute
@@ -161,6 +170,7 @@ export interface FileRouteTypes {
     | '/extract'
     | '/history'
     | '/settings'
+    | '/view'
     | '/auth/google'
     | '/auth/sign-out'
     | '/history/$extractionId'
@@ -177,6 +187,7 @@ export interface FileRouteTypes {
     | '/docs'
     | '/extract'
     | '/settings'
+    | '/view'
     | '/auth/google'
     | '/auth/sign-out'
     | '/history/$extractionId'
@@ -194,6 +205,7 @@ export interface FileRouteTypes {
     | '/extract'
     | '/history'
     | '/settings'
+    | '/view'
     | '/auth/google'
     | '/auth/sign-out'
     | '/history/$extractionId'
@@ -212,6 +224,7 @@ export interface RootRouteChildren {
   ExtractRoute: typeof ExtractRoute
   HistoryRoute: typeof HistoryRouteWithChildren
   SettingsRoute: typeof SettingsRoute
+  ViewRoute: typeof ViewRoute
   AuthGoogleRoute: typeof AuthGoogleRouteWithChildren
   AuthSignOutRoute: typeof AuthSignOutRoute
   ApiV1ExtractRoute: typeof ApiV1ExtractRoute
@@ -256,6 +269,13 @@ declare module '@tanstack/react-router' {
       path: '/settings'
       fullPath: '/settings'
       preLoaderRoute: typeof SettingsRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/view': {
+      id: '/view'
+      path: '/view'
+      fullPath: '/view'
+      preLoaderRoute: typeof ViewRouteImport
       parentRoute: typeof rootRouteImport
     }
     '/auth/google': {
@@ -362,6 +382,7 @@ const rootRouteChildren: RootRouteChildren = {
   ExtractRoute: ExtractRoute,
   HistoryRoute: HistoryRouteWithChildren,
   SettingsRoute: SettingsRoute,
+  ViewRoute: ViewRoute,
   AuthGoogleRoute: AuthGoogleRouteWithChildren,
   AuthSignOutRoute: AuthSignOutRoute,
   ApiV1ExtractRoute: ApiV1ExtractRoute,

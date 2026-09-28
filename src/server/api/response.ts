@@ -1,4 +1,5 @@
 import { toAppError } from '#lib/errors'
+import { rowsToCsv } from '#lib/csv'
 import type { AppError } from '#lib/errors'
 
 /**
@@ -115,38 +116,8 @@ export function apiTextError(
   })
 }
 
-/**
- * Serialises rows as CSV.
- *
- * Written out rather than pulled from a library because the rows are already
- * known to be flat strings keyed by header name, so all that is needed here is
- * correct quoting - a value containing a comma, a quote, or a newline must not
- * break the column structure.
- */
-export function toCsv(rows: Record<string, string>[]): string {
-  if (rows.length === 0) return ''
-
-  const headers = Object.keys(rows[0] as Record<string, string>)
-  const lines = [headers.map(escapeCsvField).join(',')]
-
-  for (const row of rows) {
-    lines.push(
-      headers.map((header) => escapeCsvField(row[header] ?? '')).join(','),
-    )
-  }
-
-  return lines.join('\n')
-}
-
-function escapeCsvField(value: string): string {
-  // A leading =, +, - or @ makes spreadsheet software treat the cell as a
-  // formula. Prefixing with a tab defuses it without changing the value for a
-  // parser that does not care.
-  const guarded = /^[=+\-@\t\r]/.test(value) ? `\t${value}` : value
-
-  if (!/[",\n\r]/.test(guarded)) return guarded
-  return `"${guarded.replace(/"/g, '""')}"`
-}
+/** Shared CSV serializer for the API response and browser downloads. */
+export const toCsv = rowsToCsv
 
 /**
  * Serialises rows as newline-delimited JSON, one object per line.

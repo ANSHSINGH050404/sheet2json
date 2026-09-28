@@ -1,5 +1,11 @@
 import { z } from 'zod'
 
+import {
+  SHEET_AGENT_MAX_COLUMNS,
+  SHEET_AGENT_MAX_COLUMN_NAME_LENGTH,
+  SHEET_AGENT_MAX_PROMPT_LENGTH,
+} from './constants'
+
 /**
  * The only host we will ever talk to. Requests to any other host are rejected
  * before a network call is made, which is the SSRF guard for this app.
@@ -24,6 +30,33 @@ export const extractInputSchema = z.object({
     .string({ error: 'Please enter a Google Sheets URL.' })
     .trim()
     .min(1, 'Please enter a Google Sheets URL.'),
+})
+
+export const sheetAgentInputSchema = z.object({
+  request: z
+    .string({ error: 'Please enter a request for the sheet assistant.' })
+    .trim()
+    .min(3, 'Please enter at least 3 characters.')
+    .max(
+      SHEET_AGENT_MAX_PROMPT_LENGTH,
+      `Please use ${SHEET_AGENT_MAX_PROMPT_LENGTH} characters or fewer.`,
+    ),
+  columns: z
+    .array(
+      z
+        .string()
+        .trim()
+        .min(1)
+        .max(
+          SHEET_AGENT_MAX_COLUMN_NAME_LENGTH,
+          'A column name is too long for the sheet assistant.',
+        ),
+    )
+    .min(1, 'This sheet has no columns to analyze.')
+    .max(
+      SHEET_AGENT_MAX_COLUMNS,
+      `The sheet assistant supports up to ${SHEET_AGENT_MAX_COLUMNS} columns.`,
+    ),
 })
 
 export const extractionIdSchema = z
@@ -54,3 +87,4 @@ export const apiKeyNameSchema = z.object({
 
 export type ExtractInput = z.infer<typeof extractInputSchema>
 export type ApiKeyNameInput = z.infer<typeof apiKeyNameSchema>
+export type SheetAgentInput = z.infer<typeof sheetAgentInputSchema>

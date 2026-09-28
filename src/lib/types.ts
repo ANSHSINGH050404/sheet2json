@@ -46,6 +46,22 @@ export interface ExtractionDetail extends ExtractionSummary {
   data: SheetRow[]
 }
 
+/** Numeric operations supported by the read-only sheet assistant. */
+export type SheetAgentAggregateOperation =
+  'sum' | 'average' | 'minimum' | 'maximum' | 'count'
+
+/** A bounded action plan returned by the server-side TypeSafe router. */
+export type SheetAgentPlan =
+  | { action: 'summarize' }
+  | { action: 'search'; column: string | null }
+  | {
+      action: 'aggregate'
+      column: string
+      operation: SheetAgentAggregateOperation
+    }
+  | { action: 'export' }
+  | { action: 'clarify'; message: string }
+
 /** User-safe error codes surfaced to the UI. */
 export type AppErrorCode =
   | 'URL_REQUIRED'
@@ -60,6 +76,8 @@ export type AppErrorCode =
   | 'NOT_FOUND'
   | 'DATABASE_UNAVAILABLE'
   | 'INTERNAL_ERROR'
+  | 'AI_NOT_CONFIGURED'
+  | 'AI_REQUEST_FAILED'
   // Auth and API. These only ever reach a signed-in caller or an API consumer.
   | 'UNAUTHENTICATED'
   | 'FORBIDDEN'

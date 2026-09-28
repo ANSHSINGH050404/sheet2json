@@ -62,36 +62,46 @@ function RootDocument({ children }: { children: ReactNode }) {
   // One client per render tree. Creating it in module scope would share a cache
   // between concurrent server renders.
   const [queryClient] = useState(createQueryClient)
+  const isEmbedView = useRouterState({
+    select: (state) =>
+      state.location.pathname === '/view' &&
+      new URLSearchParams(state.location.searchStr).get('embed') === '1',
+  })
 
+  // The head theme script sets class/color-scheme from localStorage before React hydrates.
   return (
-    <html lang="en">
+    <html lang="en" suppressHydrationWarning>
       <head>
         <HeadContent />
       </head>
       <body className="flex min-h-screen flex-col bg-surface text-ink antialiased">
         <QueryClientProvider client={queryClient}>
-          <a
-            href="#main"
-            className="sr-only focus:not-sr-only focus:absolute focus:top-3 focus:left-3 focus:z-50 focus:rounded-md focus:bg-ink focus:px-4 focus:py-2 focus:text-sm focus:font-medium focus:text-surface"
-          >
-            Skip to content
-          </a>
+          {!isEmbedView ? (
+            <a
+              href="#main"
+              className="sr-only focus:not-sr-only focus:absolute focus:top-3 focus:left-3 focus:z-50 focus:rounded-md focus:bg-ink focus:px-4 focus:py-2 focus:text-sm focus:font-medium focus:text-surface"
+            >
+              Skip to content
+            </a>
+          ) : null}
 
-          <header className="sticky top-0 z-40 border-b border-line bg-surface/80 backdrop-blur-md">
-            <div className="mx-auto flex h-14 max-w-6xl items-center justify-between gap-4 px-6">
-              <Link
-                to="/"
-                className="flex items-center gap-2 text-sm font-medium tracking-tight text-ink"
-              >
-                <Mark />
-                Sheet2JSON
-              </Link>
-              <div className="flex items-center gap-2">
-                <SiteNav />
-                <ThemeToggle />
+          {!isEmbedView ? (
+            <header className="sticky top-0 z-40 border-b border-line bg-surface/80 backdrop-blur-md">
+              <div className="mx-auto flex h-14 max-w-6xl items-center justify-between gap-4 px-6">
+                <Link
+                  to="/"
+                  className="flex items-center gap-2 text-sm font-medium tracking-tight text-ink"
+                >
+                  <Mark />
+                  Sheet2JSON
+                </Link>
+                <div className="flex items-center gap-2">
+                  <SiteNav />
+                  <ThemeToggle />
+                </div>
               </div>
-            </div>
-          </header>
+            </header>
+          ) : null}
 
           {/*
             No width or padding here: the shell owns the chrome, and each page
@@ -101,7 +111,7 @@ function RootDocument({ children }: { children: ReactNode }) {
             {children}
           </main>
 
-          <SiteFooter />
+          {!isEmbedView ? <SiteFooter /> : null}
         </QueryClientProvider>
 
         <Scripts />

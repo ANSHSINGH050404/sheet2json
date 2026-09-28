@@ -61,6 +61,23 @@ data is lost, only the permission.
 The only scope requested is `spreadsheets.readonly` — no Drive access — and
 nothing is ever written to a user's spreadsheet.
 
+## Publishing a live table
+
+After extracting a sheet, copy a **live table** link or iframe embed code from
+the result. Visitors can search across columns, and the table refreshes from the
+sheet every five minutes. The source sheet must be shared as **Anyone with the
+link — Viewer**; the published view never uses your sign-in or exposes a private
+sheet.
+
+## Sheet assistant
+
+Set `TYPESAFE_API_KEY` in `.env` (or `.env.local`) and your deployment
+environment to enable the read-only assistant. It can summarize a sheet, find
+rows by values, calculate numeric columns, and prepare CSV or JSON downloads.
+Only the user's request and column names are sent to TypeSafe; calculations and
+exports use rows already loaded in the app. The assistant never writes to a
+sheet or triggers external actions.
+
 ## Using the API
 
 Create a key in **Settings** after signing in. Keys are shown once, at creation,
