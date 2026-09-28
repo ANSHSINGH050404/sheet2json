@@ -10,18 +10,54 @@
 
 import { Route as rootRouteImport } from './routes/__root'
 import { Route as IndexRouteImport } from './routes/index'
+import { Route as DocsRouteImport } from './routes/docs'
+import { Route as ExtractRouteImport } from './routes/extract'
 import { Route as HistoryRouteImport } from './routes/history'
+import { Route as SettingsRouteImport } from './routes/settings'
+import { Route as AuthGoogleRouteImport } from './routes/auth.google'
+import { Route as AuthSignOutRouteImport } from './routes/auth.sign-out'
 import { Route as HistoryIndexRouteImport } from './routes/history.index'
 import { Route as HistoryExtractionIdRouteImport } from './routes/history.$extractionId'
+import { Route as ApiV1IndexRouteImport } from './routes/api.v1.index'
+import { Route as ApiV1ExtractRouteImport } from './routes/api.v1.extract'
+import { Route as ApiV1MeRouteImport } from './routes/api.v1.me'
+import { Route as AuthGoogleCallbackRouteImport } from './routes/auth.google.callback'
+import { Route as ApiV1ExtractionsIndexRouteImport } from './routes/api.v1.extractions.index'
+import { Route as ApiV1ExtractionsExtractionIdRouteImport } from './routes/api.v1.extractions.$extractionId'
 
 const IndexRoute = IndexRouteImport.update({
   id: '/',
   path: '/',
   getParentRoute: () => rootRouteImport,
 } as any)
+const DocsRoute = DocsRouteImport.update({
+  id: '/docs',
+  path: '/docs',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const ExtractRoute = ExtractRouteImport.update({
+  id: '/extract',
+  path: '/extract',
+  getParentRoute: () => rootRouteImport,
+} as any)
 const HistoryRoute = HistoryRouteImport.update({
   id: '/history',
   path: '/history',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const SettingsRoute = SettingsRouteImport.update({
+  id: '/settings',
+  path: '/settings',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const AuthGoogleRoute = AuthGoogleRouteImport.update({
+  id: '/auth/google',
+  path: '/auth/google',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const AuthSignOutRoute = AuthSignOutRouteImport.update({
+  id: '/auth/sign-out',
+  path: '/auth/sign-out',
   getParentRoute: () => rootRouteImport,
 } as any)
 const HistoryIndexRoute = HistoryIndexRouteImport.update({
@@ -34,36 +70,155 @@ const HistoryExtractionIdRoute = HistoryExtractionIdRouteImport.update({
   path: '/$extractionId',
   getParentRoute: () => HistoryRoute,
 } as any)
+const ApiV1IndexRoute = ApiV1IndexRouteImport.update({
+  id: '/api/v1/',
+  path: '/api/v1/',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const ApiV1ExtractRoute = ApiV1ExtractRouteImport.update({
+  id: '/api/v1/extract',
+  path: '/api/v1/extract',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const ApiV1MeRoute = ApiV1MeRouteImport.update({
+  id: '/api/v1/me',
+  path: '/api/v1/me',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const AuthGoogleCallbackRoute = AuthGoogleCallbackRouteImport.update({
+  id: '/callback',
+  path: '/callback',
+  getParentRoute: () => AuthGoogleRoute,
+} as any)
+const ApiV1ExtractionsIndexRoute = ApiV1ExtractionsIndexRouteImport.update({
+  id: '/api/v1/extractions/',
+  path: '/api/v1/extractions/',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const ApiV1ExtractionsExtractionIdRoute =
+  ApiV1ExtractionsExtractionIdRouteImport.update({
+    id: '/api/v1/extractions/$extractionId',
+    path: '/api/v1/extractions/$extractionId',
+    getParentRoute: () => rootRouteImport,
+  } as any)
 
 export interface FileRoutesByFullPath {
   '/': typeof IndexRoute
+  '/docs': typeof DocsRoute
+  '/extract': typeof ExtractRoute
   '/history': typeof HistoryRouteWithChildren
+  '/settings': typeof SettingsRoute
+  '/auth/google': typeof AuthGoogleRouteWithChildren
+  '/auth/sign-out': typeof AuthSignOutRoute
   '/history/$extractionId': typeof HistoryExtractionIdRoute
   '/history/': typeof HistoryIndexRoute
+  '/api/v1/extract': typeof ApiV1ExtractRoute
+  '/api/v1/me': typeof ApiV1MeRoute
+  '/auth/google/callback': typeof AuthGoogleCallbackRoute
+  '/api/v1/': typeof ApiV1IndexRoute
+  '/api/v1/extractions/$extractionId': typeof ApiV1ExtractionsExtractionIdRoute
+  '/api/v1/extractions/': typeof ApiV1ExtractionsIndexRoute
 }
 export interface FileRoutesByTo {
   '/': typeof IndexRoute
+  '/docs': typeof DocsRoute
+  '/extract': typeof ExtractRoute
+  '/settings': typeof SettingsRoute
+  '/auth/google': typeof AuthGoogleRouteWithChildren
+  '/auth/sign-out': typeof AuthSignOutRoute
   '/history/$extractionId': typeof HistoryExtractionIdRoute
   '/history': typeof HistoryIndexRoute
+  '/api/v1/extract': typeof ApiV1ExtractRoute
+  '/api/v1/me': typeof ApiV1MeRoute
+  '/auth/google/callback': typeof AuthGoogleCallbackRoute
+  '/api/v1': typeof ApiV1IndexRoute
+  '/api/v1/extractions/$extractionId': typeof ApiV1ExtractionsExtractionIdRoute
+  '/api/v1/extractions': typeof ApiV1ExtractionsIndexRoute
 }
 export interface FileRoutesById {
   __root__: typeof rootRouteImport
   '/': typeof IndexRoute
+  '/docs': typeof DocsRoute
+  '/extract': typeof ExtractRoute
   '/history': typeof HistoryRouteWithChildren
+  '/settings': typeof SettingsRoute
+  '/auth/google': typeof AuthGoogleRouteWithChildren
+  '/auth/sign-out': typeof AuthSignOutRoute
   '/history/$extractionId': typeof HistoryExtractionIdRoute
   '/history/': typeof HistoryIndexRoute
+  '/api/v1/extract': typeof ApiV1ExtractRoute
+  '/api/v1/me': typeof ApiV1MeRoute
+  '/auth/google/callback': typeof AuthGoogleCallbackRoute
+  '/api/v1/': typeof ApiV1IndexRoute
+  '/api/v1/extractions/$extractionId': typeof ApiV1ExtractionsExtractionIdRoute
+  '/api/v1/extractions/': typeof ApiV1ExtractionsIndexRoute
 }
 export interface FileRouteTypes {
   fileRoutesByFullPath: FileRoutesByFullPath
-  fullPaths: '/' | '/history' | '/history/$extractionId' | '/history/'
+  fullPaths:
+    | '/'
+    | '/docs'
+    | '/extract'
+    | '/history'
+    | '/settings'
+    | '/auth/google'
+    | '/auth/sign-out'
+    | '/history/$extractionId'
+    | '/history/'
+    | '/api/v1/extract'
+    | '/api/v1/me'
+    | '/auth/google/callback'
+    | '/api/v1/'
+    | '/api/v1/extractions/$extractionId'
+    | '/api/v1/extractions/'
   fileRoutesByTo: FileRoutesByTo
-  to: '/' | '/history/$extractionId' | '/history'
-  id: '__root__' | '/' | '/history' | '/history/$extractionId' | '/history/'
+  to:
+    | '/'
+    | '/docs'
+    | '/extract'
+    | '/settings'
+    | '/auth/google'
+    | '/auth/sign-out'
+    | '/history/$extractionId'
+    | '/history'
+    | '/api/v1/extract'
+    | '/api/v1/me'
+    | '/auth/google/callback'
+    | '/api/v1'
+    | '/api/v1/extractions/$extractionId'
+    | '/api/v1/extractions'
+  id:
+    | '__root__'
+    | '/'
+    | '/docs'
+    | '/extract'
+    | '/history'
+    | '/settings'
+    | '/auth/google'
+    | '/auth/sign-out'
+    | '/history/$extractionId'
+    | '/history/'
+    | '/api/v1/extract'
+    | '/api/v1/me'
+    | '/auth/google/callback'
+    | '/api/v1/'
+    | '/api/v1/extractions/$extractionId'
+    | '/api/v1/extractions/'
   fileRoutesById: FileRoutesById
 }
 export interface RootRouteChildren {
   IndexRoute: typeof IndexRoute
+  DocsRoute: typeof DocsRoute
+  ExtractRoute: typeof ExtractRoute
   HistoryRoute: typeof HistoryRouteWithChildren
+  SettingsRoute: typeof SettingsRoute
+  AuthGoogleRoute: typeof AuthGoogleRouteWithChildren
+  AuthSignOutRoute: typeof AuthSignOutRoute
+  ApiV1ExtractRoute: typeof ApiV1ExtractRoute
+  ApiV1MeRoute: typeof ApiV1MeRoute
+  ApiV1IndexRoute: typeof ApiV1IndexRoute
+  ApiV1ExtractionsExtractionIdRoute: typeof ApiV1ExtractionsExtractionIdRoute
+  ApiV1ExtractionsIndexRoute: typeof ApiV1ExtractionsIndexRoute
 }
 
 declare module '@tanstack/react-router' {
@@ -75,11 +230,46 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof IndexRouteImport
       parentRoute: typeof rootRouteImport
     }
+    '/docs': {
+      id: '/docs'
+      path: '/docs'
+      fullPath: '/docs'
+      preLoaderRoute: typeof DocsRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/extract': {
+      id: '/extract'
+      path: '/extract'
+      fullPath: '/extract'
+      preLoaderRoute: typeof ExtractRouteImport
+      parentRoute: typeof rootRouteImport
+    }
     '/history': {
       id: '/history'
       path: '/history'
       fullPath: '/history'
       preLoaderRoute: typeof HistoryRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/settings': {
+      id: '/settings'
+      path: '/settings'
+      fullPath: '/settings'
+      preLoaderRoute: typeof SettingsRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/auth/google': {
+      id: '/auth/google'
+      path: '/auth/google'
+      fullPath: '/auth/google'
+      preLoaderRoute: typeof AuthGoogleRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/auth/sign-out': {
+      id: '/auth/sign-out'
+      path: '/auth/sign-out'
+      fullPath: '/auth/sign-out'
+      preLoaderRoute: typeof AuthSignOutRouteImport
       parentRoute: typeof rootRouteImport
     }
     '/history/': {
@@ -95,6 +285,48 @@ declare module '@tanstack/react-router' {
       fullPath: '/history/$extractionId'
       preLoaderRoute: typeof HistoryExtractionIdRouteImport
       parentRoute: typeof HistoryRoute
+    }
+    '/api/v1/': {
+      id: '/api/v1/'
+      path: '/api/v1'
+      fullPath: '/api/v1/'
+      preLoaderRoute: typeof ApiV1IndexRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/api/v1/extract': {
+      id: '/api/v1/extract'
+      path: '/api/v1/extract'
+      fullPath: '/api/v1/extract'
+      preLoaderRoute: typeof ApiV1ExtractRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/api/v1/me': {
+      id: '/api/v1/me'
+      path: '/api/v1/me'
+      fullPath: '/api/v1/me'
+      preLoaderRoute: typeof ApiV1MeRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/auth/google/callback': {
+      id: '/auth/google/callback'
+      path: '/callback'
+      fullPath: '/auth/google/callback'
+      preLoaderRoute: typeof AuthGoogleCallbackRouteImport
+      parentRoute: typeof AuthGoogleRoute
+    }
+    '/api/v1/extractions/': {
+      id: '/api/v1/extractions/'
+      path: '/api/v1/extractions'
+      fullPath: '/api/v1/extractions/'
+      preLoaderRoute: typeof ApiV1ExtractionsIndexRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/api/v1/extractions/$extractionId': {
+      id: '/api/v1/extractions/$extractionId'
+      path: '/api/v1/extractions/$extractionId'
+      fullPath: '/api/v1/extractions/$extractionId'
+      preLoaderRoute: typeof ApiV1ExtractionsExtractionIdRouteImport
+      parentRoute: typeof rootRouteImport
     }
   }
 }
@@ -112,9 +344,31 @@ const HistoryRouteChildren: HistoryRouteChildren = {
 const HistoryRouteWithChildren =
   HistoryRoute._addFileChildren(HistoryRouteChildren)
 
+interface AuthGoogleRouteChildren {
+  AuthGoogleCallbackRoute: typeof AuthGoogleCallbackRoute
+}
+
+const AuthGoogleRouteChildren: AuthGoogleRouteChildren = {
+  AuthGoogleCallbackRoute: AuthGoogleCallbackRoute,
+}
+
+const AuthGoogleRouteWithChildren = AuthGoogleRoute._addFileChildren(
+  AuthGoogleRouteChildren,
+)
+
 const rootRouteChildren: RootRouteChildren = {
   IndexRoute: IndexRoute,
+  DocsRoute: DocsRoute,
+  ExtractRoute: ExtractRoute,
   HistoryRoute: HistoryRouteWithChildren,
+  SettingsRoute: SettingsRoute,
+  AuthGoogleRoute: AuthGoogleRouteWithChildren,
+  AuthSignOutRoute: AuthSignOutRoute,
+  ApiV1ExtractRoute: ApiV1ExtractRoute,
+  ApiV1MeRoute: ApiV1MeRoute,
+  ApiV1IndexRoute: ApiV1IndexRoute,
+  ApiV1ExtractionsExtractionIdRoute: ApiV1ExtractionsExtractionIdRoute,
+  ApiV1ExtractionsIndexRoute: ApiV1ExtractionsIndexRoute,
 }
 export const routeTree = rootRouteImport
   ._addFileChildren(rootRouteChildren)
