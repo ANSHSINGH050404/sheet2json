@@ -1,10 +1,14 @@
 import { AppError } from '#lib/errors'
 import { GOOGLE_SHEETS_HOSTNAME } from '#lib/validation'
 import type { GoogleSheetReference } from '#lib/types'
-import { FETCH_TIMEOUT_MS, GOOGLE_CSV_ENDPOINT, MAX_RESPONSE_BYTES } from '../config'
+import {
+  FETCH_TIMEOUT_MS,
+  GOOGLE_CSV_ENDPOINT,
+  MAX_RESPONSE_BYTES,
+} from '../config'
 
 const NOT_ACCESSIBLE_MESSAGE =
-  'This Google Sheet could not be accessed. Make sure the sheet is publicly accessible.'
+  'This Google Sheet could not be accessed. Share it as "Anyone with the link - Viewer", or connect your Google account to read a private sheet.'
 const FETCH_FAILED_MESSAGE =
   'Could not reach Google Sheets. Please check your connection and try again.'
 const TOO_LARGE_MESSAGE =
@@ -15,6 +19,14 @@ export interface FetchCsvOptions {
   fetchImpl?: typeof fetch
   timeoutMs?: number
   maxBytes?: number
+  /**
+   * The caller's Google access token, when the extraction runs on their behalf.
+   *
+   * When present the sheet is read as that user, which is what makes a private
+   * sheet readable. It is passed as a bearer header rather than a query parameter
+   * so the credential cannot end up in a URL, a log line, or a `Referer`.
+   */
+  accessToken?: string
 }
 
 /**
@@ -45,7 +57,7 @@ export function buildCsvUrl(reference: GoogleSheetReference): string {
 }
 
 /**
- * Downloads the CSV representation of a public Google Sheet.
+ * Downloads the CSV representation of a Google Sheet.
  *
  * Reads the body as a stream and aborts as soon as `maxBytes` is exceeded, so a
  * multi-gigabyte sheet can never be buffered into memory.
@@ -68,6 +80,11 @@ export async function fetchSheetCsv(
       headers: {
         accept: 'text/csv,text/plain;q=0.9,*/*;q=0.8',
         'user-agent': 'Sheet2JSON/1.0 (+public sheet extractor)',
+        // A bearer header, not a query parameter: the URL is the part of a
+        // request most likely to be logged or forwarded.
+        ...(options.accessToken
+          ? { authorization: `Bearer ${options.accessToken}` }
+          : {}),
       },
     })
   } catch (cause) {

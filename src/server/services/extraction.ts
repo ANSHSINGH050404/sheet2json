@@ -1,4 +1,5 @@
 import { AppError } from '#lib/errors'
+import { getGoogleAccess } from '#server/auth/google-tokens'
 import type { ExtractionDetail, ExtractionSummary, SheetRow } from '#lib/types'
 import { HISTORY_PAGE_SIZE } from '../config'
 import { getPrisma } from '../db/prisma'
@@ -10,6 +11,19 @@ export interface ExtractSheetOptions {
   /** Injected in tests so the network is never required. */
   fetchImpl?: typeof fetch
   maxRows?: number
+  /**
+   * The signed-in user, when there is one.
+   *
+   * When present, the sheet is read with that user's Google grant if they have
+   * one, which is what makes a private sheet readable. When absent, only public
+   * sheets can be read.
+   */
+  userId?: string
+  /**
+   * Set when the caller is a signed-in browser, so anonymous use skips the
+   * database write entirely rather than leaving an orphan row behind.
+   */
+  persist?: boolean
 }
 
 /**
@@ -28,8 +42,39 @@ export async function extractSheet(
   const reference = parseGoogleSheetUrl(url)
   const title = extractSheetTitle(url)
 
-  const csv = await fetchSheetCsv(reference, { fetchImpl: options.fetchImpl })
+  // A signed-in user with a live Google grant reads the sheet as themselves,
+  // which also covers public sheets. Anonymous callers only ever see public
+  // sheets. A refresh failure downgrades to the anonymous path rather than
+  // failing, because the sheet may well be public.
+  const accessToken = await resolveAccessToken(
+    options.userId,
+    options.fetchImpl,
+  )
+
+  const csv = await fetchSheetCsv(reference, {
+    fetchImpl: options.fetchImpl,
+    ...(accessToken ? { accessToken } : {}),
+  })
   const sheet = await parseSheetCsv(csv, { maxRows: options.maxRows })
+
+  const data: SheetRow[] = sheet.rows
+
+  // Anonymous extractions are not stored. There is no owner to file them under
+  // and no way to list them, so persisting them would only grow the table.
+  if (options.persist === false) {
+    return {
+      id: '',
+      spreadsheetId: reference.spreadsheetId,
+      gid: reference.gid,
+      title,
+      sourceUrl: url.trim(),
+      rowCount: sheet.rowCount,
+      columnCount: sheet.columnCount,
+      createdAt: new Date().toISOString(),
+      isPrivate: accessToken !== undefined,
+      data,
+    }
+  }
 
   const stored = await getPrisma().extraction.create({
     data: {
@@ -39,7 +84,8 @@ export async function extractSheet(
       sourceUrl: url.trim(),
       rowCount: sheet.rowCount,
       columnCount: sheet.columnCount,
-      data: sheet.rows,
+      data,
+      userId: options.userId ?? null,
     },
     select: {
       id: true,
@@ -50,6 +96,7 @@ export async function extractSheet(
       rowCount: true,
       columnCount: true,
       data: true,
+      userId: true,
       createdAt: true,
     },
   })
@@ -61,14 +108,40 @@ export async function extractSheet(
 }
 
 /**
- * Most recent extractions first. The MVP has no authentication, so this is
- * deliberately *global* application history - every visitor sees every row.
- * Only the fields the list renders are selected; the JSON payload is skipped.
+ * A usable Google access token for this user, or undefined.
+ *
+ * Never throws. A user whose grant has lapsed falls back to the anonymous path,
+ * which still works for public sheets; surfacing a re-auth error here would break
+ * the public case for an account problem.
+ */
+async function resolveAccessToken(
+  userId: string | undefined,
+  fetchImpl: typeof fetch | undefined,
+): Promise<string | undefined> {
+  if (!userId) return undefined
+  try {
+    const access = await getGoogleAccess(userId, { fetchImpl })
+    return access.accessToken
+  } catch (error) {
+    if (error instanceof AppError && error.code === 'GOOGLE_REAUTH_REQUIRED') {
+      return undefined
+    }
+    throw error
+  }
+}
+
+/**
+ * A user's own extractions, most recent first.
+ *
+ * Scoped to the owner. There is no global history any more: a null `userId` row
+ * from before accounts existed belongs to nobody and is never listed.
  */
 export async function getExtractions(
+  userId: string,
   limit: number = HISTORY_PAGE_SIZE,
 ): Promise<ExtractionSummary[]> {
   const records = await getPrisma().extraction.findMany({
+    where: { userId },
     orderBy: { createdAt: 'desc' },
     take: Math.min(Math.max(limit, 1), 200),
     select: {
@@ -79,6 +152,7 @@ export async function getExtractions(
       sourceUrl: true,
       rowCount: true,
       columnCount: true,
+      userId: true,
       createdAt: true,
     },
   })
@@ -86,10 +160,19 @@ export async function getExtractions(
   return records.map(toSummary)
 }
 
-/** A single extraction including its full stored JSON payload. */
-export async function getExtraction(id: string): Promise<ExtractionDetail> {
-  const record = await getPrisma().extraction.findUnique({
-    where: { id },
+/**
+ * A single extraction including its full stored JSON payload.
+ *
+ * A row owned by someone else reads as `NOT_FOUND`, not `FORBIDDEN`: telling the
+ * two apart would confirm that an id exists, which leaks the shape of other
+ * people's history.
+ */
+export async function getExtraction(
+  id: string,
+  userId: string,
+): Promise<ExtractionDetail> {
+  const record = await getPrisma().extraction.findFirst({
+    where: { id, userId },
     select: {
       id: true,
       spreadsheetId: true,
@@ -99,6 +182,7 @@ export async function getExtraction(id: string): Promise<ExtractionDetail> {
       rowCount: true,
       columnCount: true,
       data: true,
+      userId: true,
       createdAt: true,
     },
   })
@@ -113,6 +197,17 @@ export async function getExtraction(id: string): Promise<ExtractionDetail> {
   }
 }
 
+/** Deletes one of a user's extractions. Returns whether a row was removed. */
+export async function deleteExtraction(
+  id: string,
+  userId: string,
+): Promise<boolean> {
+  const { count } = await getPrisma().extraction.deleteMany({
+    where: { id, userId },
+  })
+  return count > 0
+}
+
 type StoredExtraction = {
   id: string
   spreadsheetId: string
@@ -121,6 +216,7 @@ type StoredExtraction = {
   sourceUrl: string
   rowCount: number
   columnCount: number
+  userId: string | null
   createdAt: Date
 }
 
@@ -133,6 +229,9 @@ function toSummary(record: StoredExtraction): ExtractionSummary {
     sourceUrl: record.sourceUrl,
     rowCount: record.rowCount,
     columnCount: record.columnCount,
+    // Stored rows are always owned (anonymous extractions are not persisted), so
+    // any row read back here was read on that owner's behalf.
+    isPrivate: record.userId !== null,
     // Serialised as an ISO string so the client never depends on Date revival.
     createdAt: record.createdAt.toISOString(),
   }

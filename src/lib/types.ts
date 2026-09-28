@@ -5,7 +5,7 @@
  * so it can safely be bundled into the browser.
  */
 
-/** A validated pointer to a public Google Sheet. */
+/** A validated pointer to a Google Sheet. */
 export interface GoogleSheetReference {
   spreadsheetId: string
   gid: string | null
@@ -34,6 +34,11 @@ export interface ExtractionSummary {
   rowCount: number
   columnCount: number
   createdAt: string
+  /**
+   * Whether this sheet was read with the owner's Google grant rather than
+   * anonymously. Only set for a signed-in extraction; drives the "private" badge.
+   */
+  isPrivate: boolean
 }
 
 /** A single extraction, including the full stored JSON payload. */

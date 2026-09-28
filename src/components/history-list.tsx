@@ -8,23 +8,27 @@ export interface HistoryListProps {
   extractions: ExtractionSummary[]
   isLoading: boolean
   error: string | null
+  /** Whether a visitor is signed in. Drives the signed-out empty state. */
+  isSignedIn?: boolean
 }
 
 /**
- * Global extraction history.
+ * A user's own extraction history.
  *
- * The MVP has no accounts, so every row belongs to the application rather than
- * to a user, and every visitor can open every entry. That is a deliberate
- * limitation, not an oversight - see the README.
+ * Every row belongs to the signed-in account - the list is scoped by user id, not
+ * filtered here - so there is no permission state to render. Rows read with the
+ * owner's Google grant are badged, because "you can see this but a link to it
+ * would not work for anyone else" is worth saying out loud.
  */
 export function HistoryList({
   extractions,
   isLoading,
   error,
+  isSignedIn = true,
 }: HistoryListProps) {
   if (isLoading) {
     return (
-      <div className="rounded-lg border border-slate-200 bg-white p-6">
+      <div className="rounded-lg border border-line bg-surface p-6">
         <LoadingState stages={['Loading history...']} />
       </div>
     )
@@ -34,7 +38,7 @@ export function HistoryList({
     return (
       <p
         role="alert"
-        className="rounded-lg border border-red-200 bg-red-50 px-4 py-3 text-sm text-red-800"
+        className="rounded-lg border border-danger-line bg-danger-soft px-4 py-3 text-sm text-danger-muted"
       >
         {error}
       </p>
@@ -42,26 +46,13 @@ export function HistoryList({
   }
 
   if (extractions.length === 0) {
-    return (
-      <div className="rounded-lg border border-dashed border-slate-300 px-6 py-12 text-center">
-        <p className="text-sm font-medium text-slate-700">No extractions yet</p>
-        <p className="mt-1 text-sm text-slate-500">
-          Extract a public Google Sheet to start building history.
-        </p>
-        <Link
-          to="/"
-          className="mt-4 inline-block rounded-md bg-indigo-600 px-4 py-2 text-sm font-semibold text-white transition-colors hover:bg-indigo-700 focus:outline-none focus:ring-2 focus:ring-indigo-500 focus:ring-offset-2"
-        >
-          Extract a sheet
-        </Link>
-      </div>
-    )
+    return <EmptyState isSignedIn={isSignedIn} />
   }
 
   return (
-    <div className="overflow-auto rounded-lg border border-slate-200 bg-white">
+    <div className="overflow-auto rounded-lg border border-line bg-surface">
       <table className="w-full border-collapse text-sm">
-        <caption className="sr-only">Recent extractions of public Google Sheets</caption>
+        <caption className="sr-only">Your recent sheet extractions</caption>
         <thead className="sticky top-0 z-10">
           <tr>
             {[
@@ -73,7 +64,7 @@ export function HistoryList({
               <th
                 key={column.label}
                 scope="col"
-                className={`border-b border-slate-200 bg-slate-50 px-4 py-3 text-xs font-semibold tracking-wide whitespace-nowrap text-slate-600 ${
+                className={`border-b border-line bg-surface-muted px-4 py-3 text-xs font-semibold tracking-wide whitespace-nowrap text-ink-muted ${
                   column.align === 'right' ? 'text-right' : 'text-left'
                 }`}
               >
@@ -86,29 +77,42 @@ export function HistoryList({
           {extractions.map((extraction) => (
             <tr
               key={extraction.id}
-              className="border-b border-slate-100 last:border-b-0 hover:bg-slate-50/70"
+              className="border-b border-line/60 last:border-b-0 hover:bg-surface-muted/70"
             >
               <td className="px-4 py-3">
                 <Link
                   to="/history/$extractionId"
                   params={{ extractionId: extraction.id }}
-                  className="font-medium text-indigo-700 underline-offset-2 hover:underline focus:outline-none focus:ring-2 focus:ring-indigo-500 focus:ring-offset-2"
+                  className="font-medium text-ink-strong underline-offset-2 hover:underline focus:outline-none focus:ring-2 focus:ring-ink-subtle focus:ring-offset-2"
                 >
-                  {describeExtraction(extraction.spreadsheetId, extraction.title)}
+                  {describeExtraction(
+                    extraction.spreadsheetId,
+                    extraction.title,
+                  )}
                 </Link>
-                <p className="mt-0.5 font-mono text-xs text-slate-400">
-                  {extraction.spreadsheetId.slice(0, 16)}...
-                  {extraction.gid ? ` · gid ${extraction.gid}` : ''}
+                <p className="mt-0.5 flex items-center gap-2 font-mono text-xs text-ink-faint">
+                  <span className="truncate">
+                    {extraction.spreadsheetId.slice(0, 16)}...
+                    {extraction.gid ? ` Â· gid ${extraction.gid}` : ''}
+                  </span>
+                  {extraction.isPrivate ? (
+                    <span
+                      title="Read with your Google permission. Not accessible to anyone without access to the sheet."
+                      className="shrink-0 rounded bg-surface-raised px-1.5 py-0.5 font-sans text-[10px] font-semibold tracking-wide text-ink-strong uppercase"
+                    >
+                      Private
+                    </span>
+                  ) : null}
                 </p>
               </td>
-              <td className="px-4 py-3 text-right tabular-nums text-slate-700">
+              <td className="px-4 py-3 text-right tabular-nums text-ink-strong">
                 {formatCount(extraction.rowCount)}
               </td>
-              <td className="px-4 py-3 text-right tabular-nums text-slate-700">
+              <td className="px-4 py-3 text-right tabular-nums text-ink-strong">
                 {formatCount(extraction.columnCount)}
               </td>
               <td
-                className="px-4 py-3 text-right whitespace-nowrap text-slate-500"
+                className="px-4 py-3 text-right whitespace-nowrap text-ink-subtle"
                 // Relative time depends on the current clock, which can differ
                 // between the server render and hydration.
                 suppressHydrationWarning
@@ -121,6 +125,44 @@ export function HistoryList({
           ))}
         </tbody>
       </table>
+    </div>
+  )
+}
+
+function EmptyState({ isSignedIn }: { isSignedIn: boolean }) {
+  if (!isSignedIn) {
+    return (
+      <div className="rounded-lg border border-dashed border-line-strong px-6 py-12 text-center">
+        <p className="text-sm font-medium text-ink-strong">
+          Sign in to see your history
+        </p>
+        <p className="mt-1 text-sm text-ink-subtle">
+          Extractions are saved to your Google account, so each person only ever
+          sees their own.
+        </p>
+        <a
+          href="/auth/google?redirect=/history"
+          className="mt-4 inline-block rounded-md bg-ink px-4 py-2 text-sm font-semibold text-surface transition-colors hover:bg-ink-hover focus:outline-none focus:ring-2 focus:ring-ink-subtle focus:ring-offset-2"
+        >
+          Sign in with Google
+        </a>
+      </div>
+    )
+  }
+
+  return (
+    <div className="rounded-lg border border-dashed border-line-strong px-6 py-12 text-center">
+      <p className="text-sm font-medium text-ink-strong">No extractions yet</p>
+      <p className="mt-1 text-sm text-ink-subtle">
+        Extract a Google Sheet to start building your history.
+      </p>
+      <Link
+        to="/extract"
+        search={{ auth: undefined, signedOut: undefined }}
+        className="mt-4 inline-block rounded-md bg-ink px-4 py-2 text-sm font-semibold text-surface transition-colors hover:bg-ink-hover focus:outline-none focus:ring-2 focus:ring-ink-subtle focus:ring-offset-2"
+      >
+        Extract a sheet
+      </Link>
     </div>
   )
 }

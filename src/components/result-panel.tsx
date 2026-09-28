@@ -42,19 +42,19 @@ export function ResultPanel({ extraction, action }: ResultPanelProps) {
   return (
     <section
       aria-label="Extraction result"
-      className="overflow-hidden rounded-xl border border-slate-200 bg-white shadow-sm"
+      className="overflow-hidden rounded-xl border border-line bg-surface shadow-sm"
     >
-      <div className="border-b border-slate-200 px-4 py-4 sm:px-5">
+      <div className="border-b border-line px-4 py-4 sm:px-5">
         <div className="flex flex-wrap items-start justify-between gap-3">
           <div className="min-w-0">
-            <h2 className="truncate text-base font-semibold text-slate-900">
+            <h2 className="truncate text-base font-semibold text-ink">
               {describeExtraction(extraction.spreadsheetId, extraction.title)}
             </h2>
             <a
               href={extraction.sourceUrl}
               target="_blank"
               rel="noreferrer noopener"
-              className="mt-1 inline-block max-w-full truncate font-mono text-xs text-slate-500 underline-offset-2 hover:text-indigo-700 hover:underline focus:outline-none focus:ring-2 focus:ring-indigo-500 focus:ring-offset-2"
+              className="mt-1 inline-block max-w-full truncate font-mono text-xs text-ink-subtle underline-offset-2 hover:text-ink hover:underline focus:outline-none focus:ring-2 focus:ring-ink-subtle focus:ring-offset-2"
             >
               {extraction.sourceUrl}
             </a>
@@ -64,26 +64,26 @@ export function ResultPanel({ extraction, action }: ResultPanelProps) {
 
         <dl className="mt-4 flex flex-wrap gap-x-8 gap-y-2 text-sm">
           <div>
-            <dt className="text-xs font-medium tracking-wide text-slate-500 uppercase">
+            <dt className="text-xs font-medium tracking-wide text-ink-subtle uppercase">
               Rows
             </dt>
-            <dd className="mt-0.5 text-lg font-semibold tabular-nums text-slate-900">
+            <dd className="mt-0.5 text-lg font-semibold tabular-nums text-ink">
               {formatCount(extraction.rowCount)}
             </dd>
           </div>
           <div>
-            <dt className="text-xs font-medium tracking-wide text-slate-500 uppercase">
+            <dt className="text-xs font-medium tracking-wide text-ink-subtle uppercase">
               Columns
             </dt>
-            <dd className="mt-0.5 text-lg font-semibold tabular-nums text-slate-900">
+            <dd className="mt-0.5 text-lg font-semibold tabular-nums text-ink">
               {formatCount(extraction.columnCount)}
             </dd>
           </div>
           <div>
-            <dt className="text-xs font-medium tracking-wide text-slate-500 uppercase">
+            <dt className="text-xs font-medium tracking-wide text-ink-subtle uppercase">
               Extracted
             </dt>
-            <dd className="mt-0.5 text-sm text-slate-700">
+            <dd className="mt-0.5 text-sm text-ink-strong">
               {new Date(extraction.createdAt).toLocaleString()}
             </dd>
           </div>
@@ -95,7 +95,7 @@ export function ResultPanel({ extraction, action }: ResultPanelProps) {
           role="tablist"
           aria-label="Result view"
           onKeyDown={onKeyDown}
-          className="mb-4 inline-flex rounded-lg border border-slate-200 bg-slate-50 p-0.5"
+          className="mb-4 inline-flex rounded-lg border border-line bg-surface-muted p-0.5"
         >
           {tabs.map((tab) => {
             const selected = tab.id === active
@@ -109,10 +109,10 @@ export function ResultPanel({ extraction, action }: ResultPanelProps) {
                 aria-controls={`${tabBaseId}-panel-${tab.id}`}
                 tabIndex={selected ? 0 : -1}
                 onClick={() => setActive(tab.id)}
-                className={`rounded-md px-4 py-1.5 text-sm font-medium transition-colors focus:outline-none focus:ring-2 focus:ring-indigo-500 focus:ring-offset-1 ${
+                className={`rounded-md px-4 py-1.5 text-sm font-medium transition-colors focus:outline-none focus:ring-2 focus:ring-ink-subtle focus:ring-offset-1 ${
                   selected
-                    ? 'bg-white text-slate-900 shadow-sm'
-                    : 'text-slate-600 hover:text-slate-900'
+                    ? 'bg-surface text-ink shadow-sm'
+                    : 'text-ink-muted hover:text-ink'
                 }`}
               >
                 {tab.label}
