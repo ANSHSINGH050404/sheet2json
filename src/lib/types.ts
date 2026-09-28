@@ -82,6 +82,22 @@ export interface AppErrorPayload {
 export type Result<T> =
   { ok: true; data: T } | { ok: false; error: AppErrorPayload }
 
+/** A stored API key as the settings page sees it. Never includes the secret. */
+export interface ApiKeySummary {
+  id: string
+  name: string
+  /** Public head of the key, enough to tell two keys apart in a list. */
+  prefix: string
+  createdAt: string
+  lastUsedAt: string | null
+  revokedAt: string | null
+}
+
+/** A newly created key. `key` is present exactly once, at creation. */
+export interface CreatedApiKey extends ApiKeySummary {
+  key: string
+}
+
 /** The signed-in user, as the shell and settings page need them. */
 export interface SessionUser {
   id: string

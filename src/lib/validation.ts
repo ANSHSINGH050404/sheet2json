@@ -31,4 +31,26 @@ export const extractionIdSchema = z
   .trim()
   .regex(/^[A-Za-z0-9_-]{1,64}$/, 'That extraction id is not valid.')
 
+/** Ids are cuid-generated, so this bounds a lookup without being the real check. */
+export const apiKeyIdSchema = z
+  .string()
+  .trim()
+  .regex(/^[A-Za-z0-9_-]{1,64}$/, 'That key id is not valid.')
+
+/**
+ * The name a user gives a key, shown in the settings list.
+ *
+ * Bounded at 80 characters because it is rendered in a table and in a
+ * `Content-Disposition` header on nothing - but a name is user text, so the
+ * length is capped rather than trusted.
+ */
+export const apiKeyNameSchema = z.object({
+  name: z
+    .string({ error: 'Please name this key.' })
+    .trim()
+    .min(1, 'Please name this key.')
+    .max(80, 'Please use 80 characters or fewer.'),
+})
+
 export type ExtractInput = z.infer<typeof extractInputSchema>
+export type ApiKeyNameInput = z.infer<typeof apiKeyNameSchema>

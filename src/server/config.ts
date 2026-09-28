@@ -38,6 +38,7 @@ export const HISTORY_PAGE_SIZE = readInt('HISTORY_PAGE_SIZE', 50, 1)
 /** The Google Sheets public CSV (gviz) endpoint. */
 export const GOOGLE_CSV_ENDPOINT =
   'https://docs.google.com/spreadsheets/d/{spreadsheetId}/gviz/tq?tqx=out:csv'
+
 /** Google OAuth endpoints. Hard-coded: they are not deployment-specific. */
 export const GOOGLE_AUTHORIZE_URL =
   'https://accounts.google.com/o/oauth2/v2/auth'
@@ -110,3 +111,9 @@ export const SESSION_COOKIE_NAME = 's2j_session'
  * captured `state` row has little value.
  */
 export const OAUTH_STATE_TTL_MINUTES = readInt('OAUTH_STATE_TTL_MINUTES', 10, 1)
+
+/** Every API key starts with this, so a leaked key is self-identifying. */
+export const API_KEY_PREFIX = 's2j_'
+
+/** Random bytes in an API key. */
+export const API_KEY_BYTES = 32
