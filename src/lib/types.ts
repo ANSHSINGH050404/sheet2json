@@ -46,6 +46,8 @@ export type AppErrorCode =
   | 'URL_REQUIRED'
   | 'INVALID_URL'
   | 'SHEET_NOT_ACCESSIBLE'
+  | 'SHEET_NEEDS_AUTH'
+  | 'GOOGLE_REAUTH_REQUIRED'
   | 'SHEET_EMPTY'
   | 'SHEET_TOO_LARGE'
   | 'PARSE_FAILED'
@@ -53,6 +55,12 @@ export type AppErrorCode =
   | 'NOT_FOUND'
   | 'DATABASE_UNAVAILABLE'
   | 'INTERNAL_ERROR'
+  // Auth and API. These only ever reach a signed-in caller or an API consumer.
+  | 'UNAUTHENTICATED'
+  | 'FORBIDDEN'
+  | 'RATE_LIMITED'
+  | 'OAUTH_FAILED'
+  | 'OAUTH_STATE_INVALID'
 
 /** The wire-safe shape of an error: no stack trace, no upstream detail. */
 export interface AppErrorPayload {
@@ -67,5 +75,14 @@ export interface AppErrorPayload {
  * clean, user-safe message to show.
  */
 export type Result<T> =
-  | { ok: true; data: T }
-  | { ok: false; error: AppErrorPayload }
+  { ok: true; data: T } | { ok: false; error: AppErrorPayload }
+
+/** The signed-in user, as the shell and settings page need them. */
+export interface SessionUser {
+  id: string
+  email: string
+  name: string | null
+  avatarUrl: string | null
+  /** Whether a Google grant is connected, i.e. private sheets can be read. */
+  googleConnected: boolean
+}
