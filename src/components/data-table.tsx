@@ -41,7 +41,7 @@ export function DataTable({
 
   if (headers.length === 0) {
     return (
-      <p className="rounded-lg border border-dashed border-slate-300 px-4 py-8 text-center text-sm text-slate-500">
+      <p className="rounded-lg border border-dashed border-line-strong px-4 py-8 text-center text-sm text-ink-subtle">
         No data rows found in this sheet.
       </p>
     )
@@ -49,14 +49,14 @@ export function DataTable({
 
   return (
     <div className="space-y-3">
-      <div className="overflow-auto rounded-lg border border-slate-200 bg-white">
+      <div className="overflow-auto rounded-lg border border-line bg-surface">
         <table className="w-full border-collapse text-sm">
           {caption ? <caption className="sr-only">{caption}</caption> : null}
           <thead className="sticky top-0 z-10">
             <tr>
               <th
                 scope="col"
-                className="w-12 border-b border-slate-200 bg-slate-50 px-3 py-2.5 text-right text-xs font-semibold tracking-wide text-slate-500"
+                className="w-12 border-b border-line bg-surface-muted px-3 py-2.5 text-right text-xs font-semibold tracking-wide text-ink-subtle"
               >
                 #
               </th>
@@ -65,7 +65,7 @@ export function DataTable({
                   key={header}
                   scope="col"
                   title={header}
-                  className="border-b border-slate-200 bg-slate-50 px-3 py-2.5 text-left text-xs font-semibold tracking-wide whitespace-nowrap text-slate-600"
+                  className="border-b border-line bg-surface-muted px-3 py-2.5 text-left text-xs font-semibold tracking-wide whitespace-nowrap text-ink-muted"
                 >
                   {header}
                 </th>
@@ -76,9 +76,9 @@ export function DataTable({
             {shown.map((row, rowIndex) => (
               <tr
                 key={rowIndex}
-                className="border-b border-slate-100 last:border-b-0 hover:bg-slate-50/70"
+                className="border-b border-line/60 last:border-b-0 hover:bg-surface-muted/70"
               >
-                <td className="px-3 py-2 text-right align-top text-xs tabular-nums text-slate-400">
+                <td className="px-3 py-2 text-right align-top text-xs tabular-nums text-ink-faint">
                   {formatCount(rowIndex + 1)}
                 </td>
                 {headers.map((header) => {
@@ -87,12 +87,12 @@ export function DataTable({
                   return (
                     <td
                       key={header}
-                      className="max-w-[22rem] truncate px-3 py-2 align-top text-slate-700"
+                      className="max-w-[22rem] truncate px-3 py-2 align-top text-ink-strong"
                     >
                       {isEmpty ? (
                         <span
                           aria-label="empty"
-                          className="select-none text-slate-300"
+                          className="select-none text-ink-faint"
                         >
                           &mdash;
                         </span>
@@ -108,7 +108,7 @@ export function DataTable({
         </table>
       </div>
 
-      <div className="flex flex-wrap items-center justify-between gap-3 text-xs text-slate-500">
+      <div className="flex flex-wrap items-center justify-between gap-3 text-xs text-ink-subtle">
         <p aria-live="polite">
           {isLoading
             ? 'Loading...'
@@ -117,8 +117,10 @@ export function DataTable({
         {remaining > 0 ? (
           <button
             type="button"
-            onClick={() => setVisible((current) => current + TABLE_PAGE_INCREMENT)}
-            className="rounded-md border border-slate-300 bg-white px-3 py-1.5 font-medium text-slate-700 transition-colors hover:bg-slate-50 focus:outline-none focus:ring-2 focus:ring-indigo-500 focus:ring-offset-2"
+            onClick={() =>
+              setVisible((current) => current + TABLE_PAGE_INCREMENT)
+            }
+            className="rounded-md border border-line-strong bg-surface px-3 py-1.5 font-medium text-ink-strong transition-colors hover:bg-surface-muted focus:outline-none focus:ring-2 focus:ring-ink-subtle focus:ring-offset-2"
           >
             Show {formatCount(Math.min(remaining, TABLE_PAGE_INCREMENT))} more
           </button>

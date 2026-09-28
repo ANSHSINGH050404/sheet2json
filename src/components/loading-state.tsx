@@ -35,11 +35,11 @@ export function LoadingState({
     <div
       role="status"
       aria-live="polite"
-      className="flex items-center gap-3 rounded-lg border border-slate-200 bg-slate-50 px-4 py-3 text-sm text-slate-700"
+      className="flex items-center gap-3 rounded-lg border border-line bg-surface-muted px-4 py-3 text-sm text-ink-strong"
     >
       <span
         aria-hidden="true"
-        className="size-4 shrink-0 animate-spin rounded-full border-2 border-slate-300 border-t-indigo-600"
+        className="size-4 shrink-0 animate-spin rounded-full border-2 border-line-strong border-t-ink"
       />
       <span className="font-medium">{stage}</span>
     </div>

@@ -18,15 +18,14 @@ type CopyState = 'idle' | 'copied' | 'failed'
  */
 export function JsonViewer({ data, fileName = 'sheet2json' }: JsonViewerProps) {
   const [copyState, setCopyState] = useState<CopyState>('idle')
-  const resetTimer = useRef<ReturnType<typeof setTimeout> | undefined>(undefined)
+  const resetTimer = useRef<ReturnType<typeof setTimeout> | undefined>(
+    undefined,
+  )
 
   useEffect(() => () => clearTimeout(resetTimer.current), [])
 
   const json = useMemo(() => JSON.stringify(data, null, 2), [data])
-  const byteSize = useMemo(
-    () => new TextEncoder().encode(json).length,
-    [json],
-  )
+  const byteSize = useMemo(() => new TextEncoder().encode(json).length, [json])
 
   const handleCopy = useCallback(async () => {
     clearTimeout(resetTimer.current)
@@ -58,7 +57,7 @@ export function JsonViewer({ data, fileName = 'sheet2json' }: JsonViewerProps) {
         <button
           type="button"
           onClick={handleCopy}
-          className="inline-flex items-center gap-2 rounded-md bg-indigo-600 px-3 py-1.5 text-xs font-semibold text-white transition-colors hover:bg-indigo-700 focus:outline-none focus:ring-2 focus:ring-indigo-500 focus:ring-offset-2"
+          className="inline-flex items-center gap-2 rounded-md bg-ink px-3 py-1.5 text-xs font-semibold text-surface transition-colors hover:bg-ink-hover focus:outline-none focus:ring-2 focus:ring-ink-subtle focus:ring-offset-2"
         >
           {copyState === 'copied'
             ? 'Copied!'
@@ -70,12 +69,12 @@ export function JsonViewer({ data, fileName = 'sheet2json' }: JsonViewerProps) {
         <button
           type="button"
           onClick={handleDownload}
-          className="inline-flex items-center gap-2 rounded-md border border-slate-300 bg-white px-3 py-1.5 text-xs font-semibold text-slate-700 transition-colors hover:bg-slate-50 focus:outline-none focus:ring-2 focus:ring-indigo-500 focus:ring-offset-2"
+          className="inline-flex items-center gap-2 rounded-md border border-line-strong bg-surface px-3 py-1.5 text-xs font-semibold text-ink-strong transition-colors hover:bg-surface-muted focus:outline-none focus:ring-2 focus:ring-ink-subtle focus:ring-offset-2"
         >
           Download JSON
         </button>
 
-        <span className="ml-auto text-xs tabular-nums text-slate-500">
+        <span className="ml-auto text-xs tabular-nums text-ink-subtle">
           {byteSize.toLocaleString()} bytes
         </span>
       </div>
@@ -88,7 +87,7 @@ export function JsonViewer({ data, fileName = 'sheet2json' }: JsonViewerProps) {
             : ''}
       </p>
 
-      <pre className="max-h-[32rem] overflow-auto rounded-lg border border-slate-200 bg-slate-50 p-4 font-mono text-xs leading-relaxed text-slate-800">
+      <pre className="max-h-[32rem] overflow-auto rounded-lg border border-line bg-surface-muted p-4 font-mono text-xs leading-relaxed text-ink-strong">
         {json}
       </pre>
     </div>
