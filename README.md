@@ -1,219 +1,164 @@
-Welcome to your new TanStack Start app!
+# Sheet2JSON
 
-# Getting Started
+Turn any Google Sheet into JSON — in the browser, or from your own code over a
+REST API.
 
-To run this application:
+- **Public sheets** work with no account and no setup.
+- **Private sheets** work when you sign in with Google and connect your account.
+  They are read with your own read-only permission and stay private to you.
+- **A REST API** with your own API key, so a sheet can become an endpoint in a
+  script, a webhook or a cron job.
+
+## Getting started
 
 ```bash
 bun install
 bun --bun run dev
 ```
 
-# Building For Production
+The app runs on <http://localhost:3000>.
 
-To build this application for production:
+### Database
 
-```bash
-bun --bun run build
-```
-
-## Styling
-
-This project uses [Tailwind CSS](https://tailwindcss.com/) for styling.
-
-### Removing Tailwind CSS
-
-If you prefer not to use Tailwind CSS:
-
-1. Remove the demo pages in `src/routes/demo/`
-2. Replace the Tailwind import in `src/styles.css` with your own styles
-3. Remove `tailwindcss()` from the plugins array in `vite.config.ts`
-4. Remove `@tailwindcss/vite` and `tailwindcss` from `package.json`
-
-## Linting & Formatting
-
-
-This project uses [eslint](https://eslint.org/) and [prettier](https://prettier.io/) for linting and formatting. Eslint is configured using [tanstack/eslint-config](https://tanstack.com/config/latest/docs/eslint). The following scripts are available:
+The app needs PostgreSQL. For Neon, open the Neon Console → Connection Details
+and copy the pooled connection string, then:
 
 ```bash
-bun --bun run lint
-bun --bun run format
-bun --bun run check
+cp .env.example .env.local   # then fill in DATABASE_URL
+bun run db:migrate
 ```
 
+Any PostgreSQL 14+ database works.
 
-## Deploy to Vercel
+### Google sign-in (optional)
 
-1. Push this repo to GitHub, GitLab, or Bitbucket
-2. In Vercel, choose **Add New > Project** and import the repo
-3. Keep the detected TanStack Start framework settings
-4. Add production values from `.env.example` under **Settings > Environment Variables**
-5. Deploy
+The app is fully usable without this: public sheets, the web UI and the
+anonymous API tier need no account. Sign-in adds private sheets, API keys and
+per-user history.
 
-Vercel runs the build script and deploys Nitro's output as Vercel Functions and
-static assets. The included `vercel.json` makes framework detection explicit.
+1. In the [Google Cloud Console](https://console.cloud.google.com), create a
+   project and enable the **Google Sheets API**.
+2. Configure the OAuth consent screen. While it is in "Testing", add your own
+   Google account under **Test users** — otherwise sign-in fails with
+   `access_denied`.
+3. Create credentials → **OAuth client ID** → **Web application**.
+4. Add the redirect URI, which must match exactly:
+   - development: `http://localhost:3000/auth/google/callback`
+   - production: `https://YOUR_DOMAIN/auth/google/callback`
+5. Set `GOOGLE_CLIENT_ID`, `GOOGLE_CLIENT_SECRET` and `TOKEN_ENCRYPTION_KEY` in
+   `.env.local` (and in your host's environment).
 
-Variables prefixed with `VITE_` are included in the browser bundle. Keep secrets
-unprefixed so they remain server-only.
+`TOKEN_ENCRYPTION_KEY` encrypts the stored OAuth tokens, so a leaked database is
+not enough to read anyone's private spreadsheets. Generate one with:
 
-
-## Setting up Neon
-
-When running the `dev` command, `vite-plugin-neon-new` will identify there is not a database setup. It will then create and seed a claimable database.
-
-It is the same process as [Neon Launchpad](https://neon.new).
-
-> [!IMPORTANT]  
-> Claimable databases expire in 72 hours.
-
-
-
-## Routing
-
-This project uses [TanStack Router](https://tanstack.com/router) with file-based routing. Routes are managed as files in `src/routes`.
-
-### Adding A Route
-
-To add a new route to your application just add a new file in the `./src/routes` directory.
-
-TanStack will automatically generate the content of the route file for you.
-
-Now that you have two routes you can use a `Link` component to navigate between them.
-
-### Adding Links
-
-To use SPA (Single Page Application) navigation you will need to import the `Link` component from `@tanstack/react-router`.
-
-```tsx
-import { Link } from "@tanstack/react-router";
+```bash
+openssl rand -base64 32
 ```
 
-Then anywhere in your JSX you can use it like so:
+Rotating it invalidates every stored grant; users reconnect from Settings. No
+data is lost, only the permission.
 
-```tsx
-<Link to="/about">About</Link>
+The only scope requested is `spreadsheets.readonly` — no Drive access — and
+nothing is ever written to a user's spreadsheet.
+
+## Using the API
+
+Create a key in **Settings** after signing in. Keys are shown once, at creation,
+and stored only as a SHA-256 digest.
+
+```bash
+curl "https://YOUR_DOMAIN/api/v1/extract?url=https://docs.google.com/spreadsheets/d/SHEET_ID/edit" \
+  -H "Authorization: Bearer s2j_your_key"
 ```
 
-This will create a link that will navigate to the `/about` route.
+Returns JSON by default; `?format=csv` and `?format=ndjson` return the rows in
+those shapes. The full reference is at **`/docs`**, or as JSON from
+**`GET /api/v1`**.
 
-More information on the `Link` component can be found in the [Link documentation](https://tanstack.com/router/v1/docs/framework/react/api/router/linkComponent).
+Endpoints:
 
-### Using A Layout
+| Method | Path | Auth | Purpose |
+| --- | --- | --- | --- |
+| `GET` | `/api/v1/extract?url=…` | optional | Extract a sheet as JSON, CSV or NDJSON |
+| `GET` | `/api/v1/me` | key | Verify a key and read the remaining quota |
+| `GET` | `/api/v1/extractions` | key | List the extractions saved from the web UI |
+| `GET` | `/api/v1/extractions/{id}` | key | Read one saved extraction |
+| `DELETE` | `/api/v1/extractions/{id}` | key | Delete one saved extraction |
 
-In the File Based Routing setup the layout is located in `src/routes/__root.tsx`. Anything you add to the root route will appear in all the routes. The route content will appear in the JSX where you render `{children}` in the `shellComponent`.
+Rate limits are per hour, per key and per account, with a smaller per-IP budget
+for unauthenticated callers. Every response carries `RateLimit-Limit`,
+`RateLimit-Remaining` and `RateLimit-Reset`, so a client can back off before it is
+rejected rather than after.
 
-Here is an example layout that includes a header:
+## Architecture
 
-```tsx
-import { HeadContent, Scripts, createRootRoute } from '@tanstack/react-router'
-
-export const Route = createRootRoute({
-  head: () => ({
-    meta: [
-      { charSet: 'utf-8' },
-      { name: 'viewport', content: 'width=device-width, initial-scale=1' },
-      { title: 'My App' },
-    ],
-  }),
-  shellComponent: ({ children }) => (
-    <html lang="en">
-      <head>
-        <HeadContent />
-      </head>
-      <body>
-        <header>
-          <nav>
-            <Link to="/">Home</Link>
-            <Link to="/about">About</Link>
-          </nav>
-        </header>
-        {children}
-        <Scripts />
-      </body>
-    </html>
-  ),
-})
+```
+src/
+  routes/            file-based routes; src/routes/api.* are the REST API
+  server/
+    auth/            sessions, API keys, OAuth, token crypto
+    api/             API middleware: auth, CORS, rate limits, response shapes
+    google-sheets/   URL validation, CSV fetch, parsing
+    services/        the extraction pipeline and history queries
+  components/        presentational React
+  lib/               types shared by client and server; no server imports
 ```
 
-More information on layouts can be found in the [Layouts documentation](https://tanstack.com/router/latest/docs/framework/react/guide/routing-concepts#layouts).
+A few decisions worth knowing about, all of which are commented at the point they
+matter:
 
-## Server Functions
+- **Secrets are stored as digests.** Session cookies, API keys and OAuth `state`
+  values are only ever stored as SHA-256 hashes, so a database leak yields
+  nothing replayable. OAuth *tokens* are different — they must be usable again, so
+  they are encrypted with AES-256-GCM under a key held in the environment.
+- **The SSRF boundary is the URL validator.** Only spreadsheet ids matching a
+  strict allow-list and a numeric `gid` ever reach the network layer, and the
+  built URL is re-checked against the expected host.
+- **Ownership is checked in SQL, not in the UI.** History queries are scoped by
+  `userId`, and a row owned by someone else reads as `404` rather than `403` so
+  the error does not confirm that the id exists.
+- **Rate-limit counters are in the database.** A limit held in one serverless
+  instance's memory is not a limit.
+- **The API allows any origin without credentials.** The credential travels in a
+  header, and the responses do not opt into credentialed requests, so there is no
+  ambient authority for another site to spend.
 
-TanStack Start provides server functions that allow you to write server-side code that seamlessly integrates with your client components.
+## Commands
 
-```tsx
-import { createServerFn } from '@tanstack/react-start'
-
-const getServerTime = createServerFn({
-  method: 'GET',
-}).handler(async () => {
-  return new Date().toISOString()
-})
-
-// Use in a component
-function MyComponent() {
-  const [time, setTime] = useState('')
-  
-  useEffect(() => {
-    getServerTime().then(setTime)
-  }, [])
-  
-  return <div>Server time: {time}</div>
-}
+```bash
+bun run dev            # start the dev server
+bun run build          # production build
+bun run typecheck      # tsc --noEmit
+bun run lint           # eslint
+bun run format         # prettier + eslint --fix
+bun test               # unit and integration tests
 ```
 
-## API Routes
+Database tasks:
 
-You can create API routes by using the `server` property in your route definitions:
-
-```tsx
-import { createFileRoute } from '@tanstack/react-router'
-import { json } from '@tanstack/react-start'
-
-export const Route = createFileRoute('/api/hello')({
-  server: {
-    handlers: {
-      GET: () => json({ message: 'Hello, World!' }),
-    },
-  },
-})
+```bash
+bun run db:generate    # regenerate the Prisma client after a schema change
+bun run db:migrate     # create and apply a migration
+bun run db:deploy      # apply existing migrations (production)
+bun run db:studio      # Prisma Studio
+bun run db:push        # push the schema without a migration
 ```
 
-## Data Fetching
+Tests that need a database are skipped when `DATABASE_URL` is unset, so
+`bun test` passes on a fresh clone.
 
-There are multiple ways to fetch data in your application. You can use TanStack Query to fetch data from a server. But you can also use the `loader` functionality built into TanStack Router to load the data for a route before it's rendered.
+## Deploying to Vercel
 
-For example:
+1. Push the repo to GitHub, GitLab or Bitbucket.
+2. In Vercel, choose **Add New > Project** and import it. The framework settings
+   are detected automatically; `vercel.json` makes that explicit.
+3. Set the production values from `.env.example` under **Settings > Environment
+   Variables** — including `GOOGLE_CLIENT_ID`, `GOOGLE_CLIENT_SECRET` and
+   `TOKEN_ENCRYPTION_KEY` if you want sign-in.
+4. Run `bun run db:deploy` against the production database.
 
-```tsx
-import { createFileRoute } from '@tanstack/react-router'
+Variables prefixed with `VITE_` are included in the browser bundle. Every secret
+this app uses is unprefixed, so it stays server-only.
 
-export const Route = createFileRoute('/people')({
-  loader: async () => {
-    const response = await fetch('https://swapi.dev/api/people')
-    return response.json()
-  },
-  component: PeopleComponent,
-})
-
-function PeopleComponent() {
-  const data = Route.useLoaderData()
-  return (
-    <ul>
-      {data.results.map((person) => (
-        <li key={person.name}>{person.name}</li>
-      ))}
-    </ul>
-  )
-}
-```
-
-Loaders simplify your data fetching logic dramatically. Check out more information in the [Loader documentation](https://tanstack.com/router/latest/docs/framework/react/guide/data-loading#loader-parameters).
-
-
-
-# Learn More
-
-You can learn more about all of the offerings from TanStack in the [TanStack documentation](https://tanstack.com).
-
-For TanStack Start specific documentation, visit [TanStack Start](https://tanstack.com/start).
+If you add Google sign-in, add
+`https://YOUR_DOMAIN/auth/google/callback` to the OAuth client's redirect URIs.
