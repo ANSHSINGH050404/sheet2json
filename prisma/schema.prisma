@@ -7,8 +7,21 @@ datasource db {
   provider = "postgresql"
 }
 
-model Todo {
-  id        Int      @id @default(autoincrement())
-  title     String
-  createdAt DateTime @default(now())
+/// One row per successful extraction of a public Google Sheet.
+/// The parsed sheet is stored as a single JSON document (MVP: no relational
+/// modelling of spreadsheet contents).
+model Extraction {
+  id            String   @id @default(cuid())
+  spreadsheetId String
+  gid           String?
+  title         String?
+  sourceUrl     String
+  rowCount      Int
+  columnCount   Int
+  data          Json
+  createdAt     DateTime @default(now())
+
+  @@index([createdAt])
+  @@index([spreadsheetId])
+  @@map("extractions")
 }

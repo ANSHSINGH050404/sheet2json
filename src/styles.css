@@ -1,17 +1,36 @@
+@import 'tailwindcss';
 
-@import "tailwindcss";
+@theme {
+  --font-sans:
+    ui-sans-serif, system-ui, -apple-system, 'Segoe UI', Roboto, Helvetica,
+    Arial, sans-serif;
+  --font-mono:
+    ui-monospace, SFMono-Regular, 'SF Mono', Menlo, Consolas, 'Liberation Mono',
+    monospace;
+}
 
-* {
+*,
+*::before,
+*::after {
   box-sizing: border-box;
 }
 
-html,
-body,
-#app {
-  min-height: 100%;
+html {
+  -webkit-text-size-adjust: 100%;
 }
 
 body {
   margin: 0;
 }
 
+/* Respect users who ask for less motion: the only animation in the app is the
+   loading spinner. */
+@media (prefers-reduced-motion: reduce) {
+  *,
+  *::before,
+  *::after {
+    animation-duration: 0.01ms !important;
+    animation-iteration-count: 1 !important;
+    transition-duration: 0.01ms !important;
+  }
+}
