@@ -7,6 +7,33 @@ function choiceAnswer(selected: string, confidence: number = 0.9) {
   return { type: 'choice', choice: selected, confidence }
 }
 
+function groupPlannerFetch(
+  layout: string,
+  roleIndexes: Record<string, number>,
+): typeof fetch {
+  let call = 0
+  return (async () => {
+    call += 1
+    if (call === 1) {
+      return Response.json({
+        answers: {
+          action: choiceAnswer('group_aggregate'),
+          group_layout: choiceAnswer(layout),
+        },
+      })
+    }
+
+    return Response.json({
+      answers: Object.fromEntries(
+        Object.entries(roleIndexes).map(([role, index]) => [
+          role,
+          choiceAnswer(`column_${index}`),
+        ]),
+      ),
+    })
+  }) as unknown as typeof fetch
+}
+
 describe('planSheetAction', () => {
   it('maps a natural-language calculation to an allow-listed plan', async () => {
     const captured: {
@@ -74,7 +101,7 @@ describe('planSheetAction', () => {
     ).resolves.toEqual({
       action: 'clarify',
       message:
-        'I’m not sure what action you want. Try asking me to summarize, search, calculate a column, or prepare a download.',
+        'I’m not sure what action you want. Try summarizing, searching, calculating a column, totaling by member, or preparing a download.',
     })
   })
 
@@ -94,6 +121,97 @@ describe('planSheetAction', () => {
         fetchImpl,
       }),
     ).resolves.toEqual({ action: 'search', column: null })
+  })
+
+  it('plans sent and received totals per member from separate amount columns', async () => {
+    const calls: Array<Record<string, unknown>> = []
+    const fetchImpl = (async (
+      _input: RequestInfo | URL,
+      init?: RequestInit,
+    ) => {
+      const payload = JSON.parse(String(init?.body)) as Record<string, unknown>
+      calls.push(payload)
+
+      if (calls.length === 1) {
+        return Response.json({
+          answers: {
+            action: choiceAnswer('group_aggregate'),
+            group_layout: choiceAnswer('separate_amounts'),
+          },
+        })
+      }
+
+      return Response.json({
+        answers: {
+          group_column: choiceAnswer('column_0'),
+          sent_column: choiceAnswer('column_1'),
+          received_column: choiceAnswer('column_2'),
+        },
+      })
+    }) as unknown as typeof fetch
+
+    const prompt =
+      'tell me total amount i sent and recived to everyone each member and make table'
+    const plan = await planSheetAction(prompt, ['Member', 'Sent', 'Received'], {
+      apiKey: 'test-typesafe-key',
+      fetchImpl,
+    })
+
+    expect(plan).toEqual({
+      action: 'group_aggregate',
+      layout: 'separate_amounts',
+      groupColumn: 'Member',
+      sentColumn: 'Sent',
+      receivedColumn: 'Received',
+    })
+    expect(calls).toHaveLength(2)
+    expect(JSON.stringify(calls)).not.toContain('sheet row value')
+  })
+
+  it('plans grouped totals when a direction column marks sent and received', async () => {
+    await expect(
+      planSheetAction(
+        'total sent and received by member',
+        ['Member', 'Amount', 'Direction'],
+        {
+          apiKey: 'test-typesafe-key',
+          fetchImpl: groupPlannerFetch('direction_column', {
+            group_column: 0,
+            amount_column: 1,
+            direction_column: 2,
+          }),
+        },
+      ),
+    ).resolves.toEqual({
+      action: 'group_aggregate',
+      layout: 'direction_column',
+      groupColumn: 'Member',
+      amountColumn: 'Amount',
+      directionColumn: 'Direction',
+    })
+  })
+
+  it('plans grouped totals from sender and recipient columns', async () => {
+    await expect(
+      planSheetAction(
+        'total what each member sent and received',
+        ['From', 'To', 'Amount'],
+        {
+          apiKey: 'test-typesafe-key',
+          fetchImpl: groupPlannerFetch('sender_receiver', {
+            sender_column: 0,
+            recipient_column: 1,
+            amount_column: 2,
+          }),
+        },
+      ),
+    ).resolves.toEqual({
+      action: 'group_aggregate',
+      layout: 'sender_receiver',
+      senderColumn: 'From',
+      receiverColumn: 'To',
+      amountColumn: 'Amount',
+    })
   })
 
   it('fails clearly when no TypeSafe API key is configured', async () => {

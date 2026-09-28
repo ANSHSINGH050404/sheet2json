@@ -25,6 +25,10 @@ const QUICK_PROMPTS = [
   { label: 'Summarize', request: 'Summarize this sheet' },
   { label: 'Search rows…', request: 'Find rows where ' },
   { label: 'Calculate…', request: 'Calculate the sum of ' },
+  {
+    label: 'Totals by member…',
+    request: 'Total the amount sent and received per member and make a table',
+  },
   { label: 'Prepare download', request: 'Prepare this sheet for download' },
 ] as const
 
@@ -206,6 +210,16 @@ function AssistantOutput({
             rows={output.rows}
             fileName={`${fileName}-matches`}
           />
+        </>
+      ) : null}
+      {output.kind === 'grouped' && output.rows.length > 0 ? (
+        <>
+          <DataTable
+            rows={output.rows}
+            columns={output.columns}
+            caption={`Assistant grouped ${output.rows.length} totals`}
+          />
+          <DownloadButtons rows={output.rows} fileName={`${fileName}-totals`} />
         </>
       ) : null}
       {output.kind === 'download' ? (

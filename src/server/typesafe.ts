@@ -14,10 +14,102 @@ const ACTION_CRITERIA = {
     'Find, show, list, or filter rows using values the user names in the request.',
   aggregate:
     'Calculate a sum, average, minimum, maximum, or count for one named column.',
+  group_aggregate:
+    'Group rows by a person or category and total sent/received amounts, or one numeric measure, for each group.',
   export: 'Prepare the sheet data for download as JSON or CSV.',
   other:
     'The requested task does not fit any supported read-only sheet action.',
 } as const
+
+const GROUP_LAYOUT_CRITERIA = {
+  separate_amounts:
+    'Each row has separate numeric columns for sent and received amounts, plus a person/member column.',
+  direction_column:
+    'Each row has one amount column and one direction/type column whose values distinguish sent from received.',
+  sender_receiver:
+    'Each transaction has separate sender and recipient columns plus one amount column; total sent by sender and received by recipient.',
+  single_amount:
+    'The request asks for one numeric measure totaled by a group or category, not a sent-versus-received breakdown.',
+  other: 'The available columns do not identify a usable grouped-total layout.',
+} as const
+
+type GroupLayout = Exclude<keyof typeof GROUP_LAYOUT_CRITERIA, 'other'>
+
+interface ColumnRole {
+  id: string
+  instructions: string
+  missingMessage: string
+}
+
+const GROUP_COLUMN_ROLES: Record<GroupLayout, ColumnRole[]> = {
+  separate_amounts: [
+    {
+      id: 'group_column',
+      instructions: 'Which column identifies the person/member to group by?',
+      missingMessage:
+        'Which column identifies each member? Include its heading.',
+    },
+    {
+      id: 'sent_column',
+      instructions: 'Which numeric column contains the amount sent?',
+      missingMessage: 'Which column contains the amount sent?',
+    },
+    {
+      id: 'received_column',
+      instructions: 'Which numeric column contains the amount received?',
+      missingMessage: 'Which column contains the amount received?',
+    },
+  ],
+  direction_column: [
+    {
+      id: 'group_column',
+      instructions: 'Which column identifies the person/member to group by?',
+      missingMessage:
+        'Which column identifies each member? Include its heading.',
+    },
+    {
+      id: 'amount_column',
+      instructions: 'Which numeric column contains the transaction amount?',
+      missingMessage: 'Which column contains the transaction amount?',
+    },
+    {
+      id: 'direction_column',
+      instructions:
+        'Which column says whether each transaction was sent or received?',
+      missingMessage:
+        'Which column identifies whether an amount was sent or received?',
+    },
+  ],
+  sender_receiver: [
+    {
+      id: 'sender_column',
+      instructions: 'Which column names the sender of each transaction?',
+      missingMessage: 'Which column names the sender?',
+    },
+    {
+      id: 'recipient_column',
+      instructions: 'Which column names the recipient of each transaction?',
+      missingMessage: 'Which column names the recipient?',
+    },
+    {
+      id: 'amount_column',
+      instructions: 'Which numeric column contains the transaction amount?',
+      missingMessage: 'Which column contains the transaction amount?',
+    },
+  ],
+  single_amount: [
+    {
+      id: 'group_column',
+      instructions: 'Which column identifies the group or category?',
+      missingMessage: 'Which column should I group by? Include its heading.',
+    },
+    {
+      id: 'amount_column',
+      instructions: 'Which numeric column should be totaled for each group?',
+      missingMessage: 'Which numeric column should I total?',
+    },
+  ],
+}
 
 const OPERATION_CRITERIA: Record<
   SheetAgentAggregateOperation | 'none',
@@ -106,6 +198,12 @@ export async function planSheetAction(
           'Which numeric operation does the request ask for? Choose none when no numeric calculation is requested.',
         criteria: OPERATION_CRITERIA,
       },
+      group_layout: {
+        type: 'choice',
+        instructions:
+          'Which available-column layout supports the grouped totals requested? Choose other if the headers do not show a clear layout.',
+        criteria: GROUP_LAYOUT_CRITERIA,
+      },
     },
   }
 
@@ -121,7 +219,7 @@ export async function planSheetAction(
     return {
       action: 'clarify',
       message:
-        'I’m not sure what action you want. Try asking me to summarize, search, calculate a column, or prepare a download.',
+        'I’m not sure what action you want. Try summarizing, searching, calculating a column, totaling by member, or preparing a download.',
     }
   }
 
@@ -129,12 +227,37 @@ export async function planSheetAction(
     return {
       action: 'clarify',
       message:
-        'I can summarize the sheet, search rows, calculate a column, or prepare a JSON/CSV download.',
+        'I can summarize the sheet, search rows, calculate a column, total sent/received amounts per member, or prepare a JSON/CSV download.',
     }
   }
 
   if (actionAnswer.choice === 'summarize') return { action: 'summarize' }
   if (actionAnswer.choice === 'export') return { action: 'export' }
+
+  if (actionAnswer.choice === 'group_aggregate') {
+    const layoutAnswer = readChoiceAnswer(
+      answers?.group_layout,
+      Object.keys(GROUP_LAYOUT_CRITERIA),
+    )
+    if (
+      layoutAnswer.confidence < CHOICE_CONFIDENCE_FLOOR ||
+      layoutAnswer.choice === 'other'
+    ) {
+      return {
+        action: 'clarify',
+        message:
+          'I can total values per member, but I could not match the sheet columns to sent/received amounts. Please clarify the relevant column headings.',
+      }
+    }
+
+    return planGroupedAction(
+      request,
+      columns,
+      layoutAnswer.choice as GroupLayout,
+      apiKey,
+      options.fetchImpl,
+    )
+  }
 
   const columnAnswer = readChoiceAnswer(answers?.column, ['none', ...columnIds])
   if (columnAnswer.confidence < CHOICE_CONFIDENCE_FLOOR) {
@@ -180,6 +303,126 @@ export async function planSheetAction(
     action: 'aggregate',
     column,
     operation: operationAnswer.choice as SheetAgentAggregateOperation,
+  }
+}
+
+async function planGroupedAction(
+  request: string,
+  columns: string[],
+  layout: GroupLayout,
+  apiKey: string,
+  fetchImpl: typeof fetch | undefined,
+): Promise<SheetAgentPlan> {
+  const columnIds = columns.map((_, index) => `column_${index}`)
+  const columnCriteria: Record<string, string> = {
+    none: 'No column matches this role.',
+  }
+  for (const [index, column] of columns.entries()) {
+    columnCriteria[`column_${index}`] =
+      `The column with the exact heading: ${column}`
+  }
+
+  const roles = GROUP_COLUMN_ROLES[layout]
+  const questions = Object.fromEntries(
+    roles.map((role) => [
+      role.id,
+      {
+        type: 'choice',
+        instructions: role.instructions,
+        criteria: columnCriteria,
+      },
+    ]),
+  )
+  const payload = {
+    model: TYPESAFE_MODEL,
+    state: {
+      request: request.trim(),
+      layout,
+      columns: columns.map((name, index) => ({
+        id: columnIds[index],
+        name,
+      })),
+    },
+    questions,
+  }
+
+  const response = await requestTypeSafe(payload, apiKey, fetchImpl)
+  const body = await readResponseBody(response)
+  const answers = readRecord(readRecord(body)?.answers)
+  const selected = new Map<string, string>()
+
+  for (const role of roles) {
+    const answer = readChoiceAnswer(answers?.[role.id], ['none', ...columnIds])
+    if (
+      answer.confidence < CHOICE_CONFIDENCE_FLOOR ||
+      answer.choice === 'none'
+    ) {
+      return { action: 'clarify', message: role.missingMessage }
+    }
+
+    const column = columns[columnIds.indexOf(answer.choice)]
+    if (!column) {
+      return {
+        action: 'clarify',
+        message:
+          'I could not match one of the columns. Please use its exact heading.',
+      }
+    }
+
+    if ([...selected.values()].includes(column)) {
+      return {
+        action: 'clarify',
+        message:
+          'I matched more than one role to the same column. Please name the relevant column headings explicitly.',
+      }
+    }
+
+    selected.set(role.id, column)
+  }
+
+  const selectedColumn = (id: string): string => {
+    const column = selected.get(id)
+    if (column === undefined) {
+      throw new AppError(
+        'AI_REQUEST_FAILED',
+        'The sheet assistant could not match the grouped-total columns.',
+      )
+    }
+    return column
+  }
+
+  switch (layout) {
+    case 'separate_amounts':
+      return {
+        action: 'group_aggregate',
+        layout,
+        groupColumn: selectedColumn('group_column'),
+        sentColumn: selectedColumn('sent_column'),
+        receivedColumn: selectedColumn('received_column'),
+      }
+    case 'direction_column':
+      return {
+        action: 'group_aggregate',
+        layout,
+        groupColumn: selectedColumn('group_column'),
+        amountColumn: selectedColumn('amount_column'),
+        directionColumn: selectedColumn('direction_column'),
+      }
+    case 'sender_receiver':
+      return {
+        action: 'group_aggregate',
+        layout,
+        senderColumn: selectedColumn('sender_column'),
+        receiverColumn: selectedColumn('recipient_column'),
+        amountColumn: selectedColumn('amount_column'),
+      }
+    case 'single_amount':
+      return {
+        action: 'group_aggregate',
+        layout,
+        groupColumn: selectedColumn('group_column'),
+        amountColumn: selectedColumn('amount_column'),
+      }
   }
 }
 

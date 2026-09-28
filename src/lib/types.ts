@@ -50,6 +50,35 @@ export interface ExtractionDetail extends ExtractionSummary {
 export type SheetAgentAggregateOperation =
   'sum' | 'average' | 'minimum' | 'maximum' | 'count'
 
+export type SheetAgentGroupPlan =
+  | {
+      action: 'group_aggregate'
+      layout: 'separate_amounts'
+      groupColumn: string
+      sentColumn: string
+      receivedColumn: string
+    }
+  | {
+      action: 'group_aggregate'
+      layout: 'direction_column'
+      groupColumn: string
+      amountColumn: string
+      directionColumn: string
+    }
+  | {
+      action: 'group_aggregate'
+      layout: 'sender_receiver'
+      senderColumn: string
+      receiverColumn: string
+      amountColumn: string
+    }
+  | {
+      action: 'group_aggregate'
+      layout: 'single_amount'
+      groupColumn: string
+      amountColumn: string
+    }
+
 /** A bounded action plan returned by the server-side TypeSafe router. */
 export type SheetAgentPlan =
   | { action: 'summarize' }
@@ -61,6 +90,7 @@ export type SheetAgentPlan =
     }
   | { action: 'export' }
   | { action: 'clarify'; message: string }
+  | SheetAgentGroupPlan
 
 /** User-safe error codes surfaced to the UI. */
 export type AppErrorCode =
