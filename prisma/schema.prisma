@@ -7,9 +7,131 @@ datasource db {
   provider = "postgresql"
 }
 
-/// One row per successful extraction of a public Google Sheet.
+/// A person who signed in with Google.
+///
+/// `email` is the Google account email and is unique, so signing in again with
+/// the same account always resolves to the same row. Google's stable account id
+/// lives on the related `GoogleAccount`, and that - not the email - is the
+/// identity used to match a returning user: a Workspace admin can rename an
+/// account, and matching the mutable value would hand one person another's
+/// history.
+model User {
+  id        String   @id @default(cuid())
+  email     String   @unique
+  name      String?
+  avatarUrl String?
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  googleAccount GoogleAccount?
+  sessions      Session[]
+  apiKeys       ApiKey[]
+  extractions   Extraction[]
+
+  @@map("users")
+}
+
+/// An OAuth request this server started but has not yet completed.
+///
+/// `state` is written before redirecting to Google and deleted when the callback
+/// arrives. Deleting on use is what makes the callback single-use, which is what
+/// makes `state` a real CSRF defence rather than a token that merely looks like
+/// one.
+model OAuthState {
+  state      String   @id
+  /// Where to send the browser after a successful sign-in. Validated against a
+  /// same-origin allow-list on read, so this can never become an open redirect.
+  redirectTo String
+  createdAt  DateTime @default(now())
+  expiresAt  DateTime
+
+  @@map("oauth_states")
+}
+
+/// The Google OAuth grant for a user.
+///
+/// The tokens are the whole point of signing in: they are what lets the app read
+/// a private sheet. They are stored encrypted (`*_encrypted` columns) rather than
+/// plain, so a database leak does not hand out read access to other people's
+/// spreadsheets. See `src/server/auth/crypto.ts`.
+///
+/// `refreshToken` is nullable because Google only issues one when the consent
+/// screen was shown with `access_type=offline`; a later, incremental grant can
+/// come back without it, in which case the previous token is kept.
+model GoogleAccount {
+  id     String @id @default(cuid())
+  userId String @unique
+  sub    String @unique
+
+  accessTokenEncrypted  String?
+  refreshTokenEncrypted String?
+  /// Epoch milliseconds at which `accessToken` stops being accepted.
+  accessTokenExpiresAt  BigInt?
+
+  scope      String?
+  createdAt  DateTime  @default(now())
+  updatedAt  DateTime  @updatedAt
+
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@map("google_accounts")
+}
+
+/// A signed-in browser session.
+///
+/// Only the SHA-256 hash of the session token is stored, so a database leak does
+/// not hand out live sessions. The raw token only ever exists in the cookie.
+model Session {
+  id     String @id @default(cuid())
+  userId String
+
+  tokenHash String   @unique
+  expiresAt DateTime
+  createdAt DateTime @default(now())
+  lastSeenAt DateTime @default(now())
+
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@index([userId])
+  @@index([expiresAt])
+  @@map("sessions")
+}
+
+/// A credential for the public REST API.
+///
+/// Like sessions, only a hash is stored. `prefix` is the public, non-secret head
+/// of the key: it is indexed so a presented key can be narrowed to one row
+/// before the constant-time comparison against `keyHash`, which keeps lookups a
+/// single indexed query without scanning every key.
+model ApiKey {
+  id     String @id @default(cuid())
+  userId String
+
+  name  String
+  prefix String
+  /// SHA-256 of the full key. The key itself is shown exactly once, at creation.
+  keyHash String @unique
+
+  lastUsedAt DateTime?
+  revokedAt  DateTime?
+  createdAt  DateTime  @default(now())
+
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@index([prefix])
+  @@index([userId])
+  @@map("api_keys")
+}
+
+/// One row per successful extraction of a Google Sheet.
 /// The parsed sheet is stored as a single JSON document (MVP: no relational
 /// modelling of spreadsheet contents).
+///
+/// `userId` is nullable and set only when the extraction came from a signed-in
+/// browser. It is deliberately optional rather than required so that the public
+/// API and anonymous use keep working without an account, and so rows written
+/// before accounts existed stay readable. Rows with a null `userId` are never
+/// listed in anyone's history.
 model Extraction {
   id            String   @id @default(cuid())
   spreadsheetId String
@@ -19,9 +141,36 @@ model Extraction {
   rowCount      Int
   columnCount   Int
   data          Json
+  userId        String?
+  /// Whether this row was read with the owner's Google grant rather than
+  /// anonymously. Drives the "private" badge in the UI, and tells a reader that
+  /// the sheet is not world-readable.
+  usedUserGrant Boolean  @default(false)
   createdAt     DateTime @default(now())
+
+  user User? @relation(fields: [userId], references: [id], onDelete: Cascade)
 
   @@index([createdAt])
   @@index([spreadsheetId])
+  @@index([userId, createdAt])
   @@map("extractions")
+}
+
+/// A fixed-window request counter for rate limiting.
+///
+/// The limit has to hold across serverless instances, where process memory is
+/// per-instance and a request can land anywhere. Putting the counters in the
+/// database makes the limit global; it costs one upsert per request.
+///
+/// `id` is the bucket key (`key:<id>`, `user:<id>`, or `ip:<address>`) and
+/// doubles as the primary key, so incrementing is a single write.
+model RateLimitBucket {
+  id          String   @id
+  /// Start of the window this count applies to. A row is reused until the
+  /// window rolls over, at which point the next request replaces it.
+  windowStart DateTime
+  count       Int      @default(0)
+
+  @@index([windowStart])
+  @@map("rate_limit_buckets")
 }
