@@ -117,3 +117,23 @@ export const API_KEY_PREFIX = 's2j_'
 
 /** Random bytes in an API key. */
 export const API_KEY_BYTES = 32
+
+/**
+ * Rate limits, per hour.
+ *
+ * Three tiers, because the credential strength differs: a key is the unit a user
+ * manages per project, a user is the unit that can mint more keys, and the IP
+ * tier is what stands between an anonymous flood and our upstream quota.
+ */
+export const RATE_LIMIT_PER_KEY = readInt('RATE_LIMIT_PER_KEY', 1_000, 1)
+export const RATE_LIMIT_PER_USER = readInt('RATE_LIMIT_PER_USER', 5_000, 1)
+export const RATE_LIMIT_PER_IP = readInt('RATE_LIMIT_PER_IP', 60, 1)
+
+/**
+ * How long a successful API extraction may be served from the response cache.
+ *
+ * The API exists to be polled by scripts, and every miss is a real request to
+ * Google on the user's behalf. A short window absorbs polling without ever
+ * serving something meaningfully stale. `0` disables it.
+ */
+export const API_CACHE_TTL_SECONDS = readInt('API_CACHE_TTL_SECONDS', 60, 0)
