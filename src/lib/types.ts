@@ -153,6 +153,15 @@ export interface CreatedApiKey extends ApiKeySummary {
   key: string
 }
 
+/** A user's named live endpoint configuration. Never includes sheet row data. */
+export interface SavedEndpointSummary {
+  id: string
+  name: string
+  sourceUrl: string
+  query: string
+  createdAt: string
+}
+
 /** The signed-in user, as the shell and settings page need them. */
 export interface SessionUser {
   id: string

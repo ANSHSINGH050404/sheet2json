@@ -11,6 +11,7 @@
 import { Route as rootRouteImport } from './routes/__root'
 import { Route as IndexRouteImport } from './routes/index'
 import { Route as DocsRouteImport } from './routes/docs'
+import { Route as EndpointsRouteImport } from './routes/endpoints'
 import { Route as ExtractRouteImport } from './routes/extract'
 import { Route as HistoryRouteImport } from './routes/history'
 import { Route as SettingsRouteImport } from './routes/settings'
@@ -23,6 +24,8 @@ import { Route as ApiV1IndexRouteImport } from './routes/api.v1.index'
 import { Route as ApiV1ExtractRouteImport } from './routes/api.v1.extract'
 import { Route as ApiV1MeRouteImport } from './routes/api.v1.me'
 import { Route as AuthGoogleCallbackRouteImport } from './routes/auth.google.callback'
+import { Route as ApiV1EndpointsIndexRouteImport } from './routes/api.v1.endpoints.index'
+import { Route as ApiV1EndpointsEndpointIdRouteImport } from './routes/api.v1.endpoints.$endpointId'
 import { Route as ApiV1ExtractionsIndexRouteImport } from './routes/api.v1.extractions.index'
 import { Route as ApiV1ExtractionsExtractionIdRouteImport } from './routes/api.v1.extractions.$extractionId'
 
@@ -34,6 +37,11 @@ const IndexRoute = IndexRouteImport.update({
 const DocsRoute = DocsRouteImport.update({
   id: '/docs',
   path: '/docs',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const EndpointsRoute = EndpointsRouteImport.update({
+  id: '/endpoints',
+  path: '/endpoints',
   getParentRoute: () => rootRouteImport,
 } as any)
 const ExtractRoute = ExtractRouteImport.update({
@@ -96,6 +104,17 @@ const AuthGoogleCallbackRoute = AuthGoogleCallbackRouteImport.update({
   path: '/callback',
   getParentRoute: () => AuthGoogleRoute,
 } as any)
+const ApiV1EndpointsIndexRoute = ApiV1EndpointsIndexRouteImport.update({
+  id: '/api/v1/endpoints/',
+  path: '/api/v1/endpoints/',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const ApiV1EndpointsEndpointIdRoute =
+  ApiV1EndpointsEndpointIdRouteImport.update({
+    id: '/api/v1/endpoints/$endpointId',
+    path: '/api/v1/endpoints/$endpointId',
+    getParentRoute: () => rootRouteImport,
+  } as any)
 const ApiV1ExtractionsIndexRoute = ApiV1ExtractionsIndexRouteImport.update({
   id: '/api/v1/extractions/',
   path: '/api/v1/extractions/',
@@ -111,6 +130,7 @@ const ApiV1ExtractionsExtractionIdRoute =
 export interface FileRoutesByFullPath {
   '/': typeof IndexRoute
   '/docs': typeof DocsRoute
+  '/endpoints': typeof EndpointsRoute
   '/extract': typeof ExtractRoute
   '/history': typeof HistoryRouteWithChildren
   '/settings': typeof SettingsRoute
@@ -123,12 +143,15 @@ export interface FileRoutesByFullPath {
   '/api/v1/me': typeof ApiV1MeRoute
   '/auth/google/callback': typeof AuthGoogleCallbackRoute
   '/api/v1/': typeof ApiV1IndexRoute
+  '/api/v1/endpoints/$endpointId': typeof ApiV1EndpointsEndpointIdRoute
   '/api/v1/extractions/$extractionId': typeof ApiV1ExtractionsExtractionIdRoute
+  '/api/v1/endpoints/': typeof ApiV1EndpointsIndexRoute
   '/api/v1/extractions/': typeof ApiV1ExtractionsIndexRoute
 }
 export interface FileRoutesByTo {
   '/': typeof IndexRoute
   '/docs': typeof DocsRoute
+  '/endpoints': typeof EndpointsRoute
   '/extract': typeof ExtractRoute
   '/settings': typeof SettingsRoute
   '/view': typeof ViewRoute
@@ -140,13 +163,16 @@ export interface FileRoutesByTo {
   '/api/v1/me': typeof ApiV1MeRoute
   '/auth/google/callback': typeof AuthGoogleCallbackRoute
   '/api/v1': typeof ApiV1IndexRoute
+  '/api/v1/endpoints/$endpointId': typeof ApiV1EndpointsEndpointIdRoute
   '/api/v1/extractions/$extractionId': typeof ApiV1ExtractionsExtractionIdRoute
+  '/api/v1/endpoints': typeof ApiV1EndpointsIndexRoute
   '/api/v1/extractions': typeof ApiV1ExtractionsIndexRoute
 }
 export interface FileRoutesById {
   __root__: typeof rootRouteImport
   '/': typeof IndexRoute
   '/docs': typeof DocsRoute
+  '/endpoints': typeof EndpointsRoute
   '/extract': typeof ExtractRoute
   '/history': typeof HistoryRouteWithChildren
   '/settings': typeof SettingsRoute
@@ -159,7 +185,9 @@ export interface FileRoutesById {
   '/api/v1/me': typeof ApiV1MeRoute
   '/auth/google/callback': typeof AuthGoogleCallbackRoute
   '/api/v1/': typeof ApiV1IndexRoute
+  '/api/v1/endpoints/$endpointId': typeof ApiV1EndpointsEndpointIdRoute
   '/api/v1/extractions/$extractionId': typeof ApiV1ExtractionsExtractionIdRoute
+  '/api/v1/endpoints/': typeof ApiV1EndpointsIndexRoute
   '/api/v1/extractions/': typeof ApiV1ExtractionsIndexRoute
 }
 export interface FileRouteTypes {
@@ -167,6 +195,7 @@ export interface FileRouteTypes {
   fullPaths:
     | '/'
     | '/docs'
+    | '/endpoints'
     | '/extract'
     | '/history'
     | '/settings'
@@ -179,12 +208,15 @@ export interface FileRouteTypes {
     | '/api/v1/me'
     | '/auth/google/callback'
     | '/api/v1/'
+    | '/api/v1/endpoints/$endpointId'
     | '/api/v1/extractions/$extractionId'
+    | '/api/v1/endpoints/'
     | '/api/v1/extractions/'
   fileRoutesByTo: FileRoutesByTo
   to:
     | '/'
     | '/docs'
+    | '/endpoints'
     | '/extract'
     | '/settings'
     | '/view'
@@ -196,12 +228,15 @@ export interface FileRouteTypes {
     | '/api/v1/me'
     | '/auth/google/callback'
     | '/api/v1'
+    | '/api/v1/endpoints/$endpointId'
     | '/api/v1/extractions/$extractionId'
+    | '/api/v1/endpoints'
     | '/api/v1/extractions'
   id:
     | '__root__'
     | '/'
     | '/docs'
+    | '/endpoints'
     | '/extract'
     | '/history'
     | '/settings'
@@ -214,13 +249,16 @@ export interface FileRouteTypes {
     | '/api/v1/me'
     | '/auth/google/callback'
     | '/api/v1/'
+    | '/api/v1/endpoints/$endpointId'
     | '/api/v1/extractions/$extractionId'
+    | '/api/v1/endpoints/'
     | '/api/v1/extractions/'
   fileRoutesById: FileRoutesById
 }
 export interface RootRouteChildren {
   IndexRoute: typeof IndexRoute
   DocsRoute: typeof DocsRoute
+  EndpointsRoute: typeof EndpointsRoute
   ExtractRoute: typeof ExtractRoute
   HistoryRoute: typeof HistoryRouteWithChildren
   SettingsRoute: typeof SettingsRoute
@@ -230,7 +268,9 @@ export interface RootRouteChildren {
   ApiV1ExtractRoute: typeof ApiV1ExtractRoute
   ApiV1MeRoute: typeof ApiV1MeRoute
   ApiV1IndexRoute: typeof ApiV1IndexRoute
+  ApiV1EndpointsEndpointIdRoute: typeof ApiV1EndpointsEndpointIdRoute
   ApiV1ExtractionsExtractionIdRoute: typeof ApiV1ExtractionsExtractionIdRoute
+  ApiV1EndpointsIndexRoute: typeof ApiV1EndpointsIndexRoute
   ApiV1ExtractionsIndexRoute: typeof ApiV1ExtractionsIndexRoute
 }
 
@@ -248,6 +288,13 @@ declare module '@tanstack/react-router' {
       path: '/docs'
       fullPath: '/docs'
       preLoaderRoute: typeof DocsRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/endpoints': {
+      id: '/endpoints'
+      path: '/endpoints'
+      fullPath: '/endpoints'
+      preLoaderRoute: typeof EndpointsRouteImport
       parentRoute: typeof rootRouteImport
     }
     '/extract': {
@@ -334,6 +381,20 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof AuthGoogleCallbackRouteImport
       parentRoute: typeof AuthGoogleRoute
     }
+    '/api/v1/endpoints/': {
+      id: '/api/v1/endpoints/'
+      path: '/api/v1/endpoints'
+      fullPath: '/api/v1/endpoints/'
+      preLoaderRoute: typeof ApiV1EndpointsIndexRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/api/v1/endpoints/$endpointId': {
+      id: '/api/v1/endpoints/$endpointId'
+      path: '/api/v1/endpoints/$endpointId'
+      fullPath: '/api/v1/endpoints/$endpointId'
+      preLoaderRoute: typeof ApiV1EndpointsEndpointIdRouteImport
+      parentRoute: typeof rootRouteImport
+    }
     '/api/v1/extractions/': {
       id: '/api/v1/extractions/'
       path: '/api/v1/extractions'
@@ -379,6 +440,7 @@ const AuthGoogleRouteWithChildren = AuthGoogleRoute._addFileChildren(
 const rootRouteChildren: RootRouteChildren = {
   IndexRoute: IndexRoute,
   DocsRoute: DocsRoute,
+  EndpointsRoute: EndpointsRoute,
   ExtractRoute: ExtractRoute,
   HistoryRoute: HistoryRouteWithChildren,
   SettingsRoute: SettingsRoute,
@@ -388,7 +450,9 @@ const rootRouteChildren: RootRouteChildren = {
   ApiV1ExtractRoute: ApiV1ExtractRoute,
   ApiV1MeRoute: ApiV1MeRoute,
   ApiV1IndexRoute: ApiV1IndexRoute,
+  ApiV1EndpointsEndpointIdRoute: ApiV1EndpointsEndpointIdRoute,
   ApiV1ExtractionsExtractionIdRoute: ApiV1ExtractionsExtractionIdRoute,
+  ApiV1EndpointsIndexRoute: ApiV1EndpointsIndexRoute,
   ApiV1ExtractionsIndexRoute: ApiV1ExtractionsIndexRoute,
 }
 export const routeTree = rootRouteImport

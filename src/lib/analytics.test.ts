@@ -17,6 +17,10 @@ describe('analyticsRouteForPath', () => {
     expect(analyticsRouteForPath('/view')).toBe('live_table')
   })
 
+  it('maps saved endpoint management to a stable route name', () => {
+    expect(analyticsRouteForPath('/endpoints')).toBe('endpoints')
+  })
+
   it('does not expose unknown route names', () => {
     expect(analyticsRouteForPath('/unknown/private-id')).toBe('other')
   })

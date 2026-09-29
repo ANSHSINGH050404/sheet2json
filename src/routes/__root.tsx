@@ -181,11 +181,13 @@ function SiteNav() {
     // invalidating would refetch a list the new anonymous caller cannot read.
     queryClient.setQueryData(sessionQueryKey, null)
     queryClient.removeQueries({ queryKey: ['extractions'] })
+    queryClient.removeQueries({ queryKey: ['saved-endpoints'] })
     void router.invalidate()
   }
 
   const items = [
     { to: '/extract', label: 'Extract' },
+    { to: '/endpoints', label: 'Endpoints', requiresAuth: true },
     { to: '/docs', label: 'API' },
     { to: '/history', label: 'History', requiresAuth: true },
     { to: '/settings', label: 'Settings', requiresAuth: true },
@@ -240,6 +242,7 @@ const FOOTER_COLUMNS = [
     heading: 'Product',
     links: [
       { to: '/extract', label: 'Extract a sheet' },
+      { to: '/endpoints', label: 'Saved endpoints' },
       { to: '/history', label: 'History' },
       { to: '/settings', label: 'Settings' },
     ],

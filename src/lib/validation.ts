@@ -85,6 +85,32 @@ export const apiKeyNameSchema = z.object({
     .max(80, 'Please use 80 characters or fewer.'),
 })
 
+/**
+ * The configuration saved for a live endpoint. The Google URL is validated by
+ * the extraction pipeline before it is persisted; these bounds keep user input
+ * compact and safe to carry through server functions.
+ */
+export const savedEndpointInputSchema = z.object({
+  name: z
+    .string({ error: 'Please name this endpoint.' })
+    .trim()
+    .min(1, 'Please name this endpoint.')
+    .max(80, 'Please use 80 characters or fewer.'),
+  sourceUrl: z
+    .string({ error: 'Please enter a Google Sheets URL.' })
+    .trim()
+    .min(1, 'Please enter a Google Sheets URL.')
+    .max(2048, 'The Google Sheets URL is too long.'),
+  query: z.string().max(4096, 'The endpoint query is too long.').default(''),
+})
+
+/** Endpoint ids are cuid-generated; this bounds a lookup without being the real check. */
+export const savedEndpointIdSchema = z
+  .string()
+  .trim()
+  .regex(/^[A-Za-z0-9_-]{1,64}$/, 'That endpoint id is not valid.')
+
 export type ExtractInput = z.infer<typeof extractInputSchema>
 export type ApiKeyNameInput = z.infer<typeof apiKeyNameSchema>
 export type SheetAgentInput = z.infer<typeof sheetAgentInputSchema>
+export type SavedEndpointInput = z.infer<typeof savedEndpointInputSchema>

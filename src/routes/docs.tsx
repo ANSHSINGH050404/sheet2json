@@ -33,6 +33,7 @@ function DocsPage() {
       <ExtractEndpoint />
       <QuerySection />
       <OtherEndpoints />
+      <SavedEndpoints />
       <PrivateSheets isSignedIn={isSignedIn} />
       <Limits />
       <Errors />
@@ -474,6 +475,88 @@ function OtherEndpoints() {
         All four require an API key. A resource belonging to another account
         reads as <code className="font-mono">404</code>, never{' '}
         <code className="font-mono">403</code>.
+      </p>
+    </section>
+  )
+}
+
+function SavedEndpoints() {
+  return (
+    <section
+      aria-labelledby="saved-endpoints"
+      className="border-t border-line pt-8"
+    >
+      <h2
+        id="saved-endpoints"
+        className="text-lg font-semibold tracking-tight text-ink"
+      >
+        Saved live endpoints
+      </h2>
+      <p className="mt-2 text-sm text-ink-muted">
+        Save a sheet and its optional <code className="font-mono">select</code>,{' '}
+        <code className="font-mono">where</code>,{' '}
+        <code className="font-mono">sort</code> and{' '}
+        <code className="font-mono">limit</code> recipe from the extraction
+        result. The endpoint reads current sheet rows, applies that recipe, and
+        keeps the same URL until you delete it. Reads use the API's short cache.
+        The endpoint is private to your account and requires one of your API
+        keys.
+      </p>
+      <CodeBlock
+        className="mt-3"
+        code={`curl "https://sheet2json.app/api/v1/endpoints/ENDPOINT_ID?format=csv" \\
+  -H "Authorization: Bearer s2j_your_key_here"`}
+      />
+      <p className="mt-4 text-sm text-ink-muted">
+        Server-side JavaScript works the same way. Keep the API key in an
+        environment variable and out of public browser code.
+      </p>
+      <CodeBlock
+        className="mt-3"
+        language="javascript"
+        code={[
+          'const response = await fetch("https://sheet2json.app/api/v1/endpoints/ENDPOINT_ID", {',
+          '  headers: { Authorization: "Bearer " + process.env.S2J_KEY },',
+          '});',
+          'const data = await response.json();',
+        ].join('\n')}
+      />
+      <dl className="mt-4 space-y-4">
+        {[
+          {
+            method: 'GET',
+            path: '/api/v1/endpoints',
+            description: "Lists the caller's saved endpoint recipes.",
+          },
+          {
+            method: 'GET',
+            path: '/api/v1/endpoints/{id}',
+            description:
+              'Fetches live rows using the saved recipe. Optional format: json (default), csv or ndjson.',
+          },
+          {
+            method: 'DELETE',
+            path: '/api/v1/endpoints/{id}',
+            description: "Deletes one of the caller's saved endpoint recipes.",
+          },
+        ].map((endpoint) => (
+          <div key={endpoint.path}>
+            <dt className="font-mono text-sm text-ink-strong">
+              <span className="mr-2 rounded bg-surface-raised px-1.5 py-0.5 text-xs font-semibold text-ink-muted">
+                {endpoint.method}
+              </span>
+              {endpoint.path}
+            </dt>
+            <dd className="mt-1 pl-1 text-sm text-ink-muted">
+              {endpoint.description}
+            </dd>
+          </div>
+        ))}
+      </dl>
+      <p className="mt-4 text-sm text-ink-muted">
+        A saved endpoint can read a private sheet only with the Google
+        permission connected to its owner account. The ID alone never grants
+        access.
       </p>
     </section>
   )

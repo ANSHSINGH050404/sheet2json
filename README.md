@@ -6,6 +6,7 @@ REST API.
 - **Public sheets** work with no account and no setup.
 - **Private sheets** work when you sign in with Google and connect your account.
   They are read with your own read-only permission and stay private to you.
+- **Saved endpoints** give a sheet and its filters a stable, reusable API URL.
 - **A REST API** with your own API key, so a sheet can become an endpoint in a
   script, a webhook or a cron job.
 
@@ -99,6 +100,28 @@ history IDs normalized before they are sent.
 
 Create a key in **Settings** after signing in. Keys are shown once, at creation,
 and stored only as a SHA-256 digest.
+
+After extracting a sheet, choose **Save as a live API endpoint** to name the
+recipe, preview its column selection and filters, and get a stable URL. The URL
+reads current sheet data, applies the saved recipe, and requires one of your API
+keys. Reads use the API's short cache. Manage or delete saved endpoints from
+**Endpoints**.
+
+```bash
+curl "https://YOUR_DOMAIN/api/v1/endpoints/ENDPOINT_ID?format=csv" \
+  -H "Authorization: Bearer s2j_your_key"
+```
+
+```js
+const response = await fetch(
+  'https://YOUR_DOMAIN/api/v1/endpoints/ENDPOINT_ID',
+  { headers: { Authorization: 'Bearer ' + process.env.S2J_KEY } },
+)
+const data = await response.json()
+```
+
+Saved endpoints can also be listed or deleted with the API. They are scoped to
+the API key's account; an endpoint ID does not grant access to a private sheet.
 
 ```bash
 curl "https://YOUR_DOMAIN/api/v1/extract?url=https://docs.google.com/spreadsheets/d/SHEET_ID/edit" \
