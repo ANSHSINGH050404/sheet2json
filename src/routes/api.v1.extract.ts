@@ -8,6 +8,7 @@ import {
 } from '#server/api/authenticate'
 import { CORS_HEADERS, corsPreflight } from '#server/api/cors'
 import { apiError, apiJson, toCsv, toNdjson } from '#server/api/response'
+import { parseRowQuery } from '#lib/query'
 import { extractSheet } from '#server/services/extraction'
 import { API_CACHE_TTL_SECONDS } from '#server/config'
 
@@ -19,6 +20,10 @@ import { API_CACHE_TTL_SECONDS } from '#server/config'
  *
  * JSON by default; `?format=csv` and `?format=ndjson` return the rows in those
  * shapes for callers that are piping them somewhere rather than parsing JSON.
+ *
+ * `?select`, `?where`, `?sort` and `?limit` narrow the rows server-side, so a
+ * caller who wants five of nine hundred rows does not have to download all of
+ * them. See /docs.
  *
  * A request with no API key is still served, under a much smaller per-IP budget.
  * That keeps a first-time `curl` working without an account while making bulk
@@ -40,11 +45,15 @@ export const Route = createFileRoute('/api/v1/extract')({
 
           const query = new URL(request.url).searchParams
           const format = readFormat(query.get('format'))
+          // Syntax is validated before the fetch, so a typo'd `where` fails
+          // without spending a request on Google's CSV endpoint.
+          const rowQuery = parseRowQuery(query)
 
           const result = await extractSheet(requireUrl(query.get('url')), {
             userId: auth.caller.userId ?? undefined,
             // A polled read should not write a history row on every call.
             persist: false,
+            query: rowQuery,
           })
 
           // A short cache window absorbs polling without ever serving something

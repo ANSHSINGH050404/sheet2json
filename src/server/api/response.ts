@@ -31,6 +31,7 @@ function statusFor(code: AppError['code']): number {
       return 404
     case 'INVALID_URL':
     case 'URL_REQUIRED':
+    case 'INVALID_QUERY':
     case 'OAUTH_STATE_INVALID':
       return 400
     case 'SHEET_NOT_ACCESSIBLE':

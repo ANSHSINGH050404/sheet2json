@@ -31,6 +31,7 @@ function DocsPage() {
       <QuickStart isSignedIn={isSignedIn} />
       <Authentication isSignedIn={isSignedIn} />
       <ExtractEndpoint />
+      <QuerySection />
       <OtherEndpoints />
       <PrivateSheets isSignedIn={isSignedIn} />
       <Limits />
@@ -176,6 +177,48 @@ function ExtractEndpoint() {
                 <code className="font-mono">ndjson</code>.
               </td>
             </tr>
+            <tr className="border-b border-line/60">
+              <td className="px-3 py-2 font-mono text-xs text-ink-strong">
+                select
+              </td>
+              <td className="px-3 py-2 text-xs text-ink-muted">no</td>
+              <td className="px-3 py-2 text-xs text-ink-muted">
+                Comma-separated columns to keep, in that order.{' '}
+                <a href="#query" className="underline underline-offset-2">
+                  See below.
+                </a>
+              </td>
+            </tr>
+            <tr className="border-b border-line/60">
+              <td className="px-3 py-2 font-mono text-xs text-ink-strong">
+                where
+              </td>
+              <td className="px-3 py-2 text-xs text-ink-muted">no</td>
+              <td className="px-3 py-2 text-xs text-ink-muted">
+                One filter, e.g.{' '}
+                <code className="font-mono">where=role=Developer</code>. Repeat
+                it to AND several together.
+              </td>
+            </tr>
+            <tr className="border-b border-line/60">
+              <td className="px-3 py-2 font-mono text-xs text-ink-strong">
+                sort
+              </td>
+              <td className="px-3 py-2 text-xs text-ink-muted">no</td>
+              <td className="px-3 py-2 text-xs text-ink-muted">
+                Columns to order by. A leading{' '}
+                <code className="font-mono">-</code> sorts descending.
+              </td>
+            </tr>
+            <tr>
+              <td className="px-3 py-2 font-mono text-xs text-ink-strong">
+                limit
+              </td>
+              <td className="px-3 py-2 text-xs text-ink-muted">no</td>
+              <td className="px-3 py-2 text-xs text-ink-muted">
+                Most rows to return, applied after filtering and sorting.
+              </td>
+            </tr>
           </tbody>
         </table>
       </div>
@@ -240,6 +283,148 @@ function ExtractEndpoint() {
     </section>
   )
 }
+
+function QuerySection() {
+  const [example, setExample] = useState<string>(EXAMPLES[0].id)
+
+  const active = EXAMPLES.find((entry) => entry.id === example) ?? EXAMPLES[0]
+
+  return (
+    <section aria-labelledby="query" className="border-t border-line pt-8">
+      <h2 id="query" className="text-lg font-semibold tracking-tight text-ink">
+        Narrowing the rows
+      </h2>
+      <p className="mt-2 text-sm text-ink-muted">
+        The point of an endpoint rather than a CSV download: filter, order and
+        cap the rows server-side, so pulling five rows out of nine hundred does
+        not mean transferring all nine hundred. Parameters are applied in a
+        fixed order &mdash; <code className="font-mono">where</code>, then{' '}
+        <code className="font-mono">sort</code>, then{' '}
+        <code className="font-mono">limit</code>, then{' '}
+        <code className="font-mono">select</code>.
+      </p>
+
+      <div
+        role="tablist"
+        aria-label="Query example"
+        className="mt-4 inline-flex flex-wrap rounded-lg border border-line bg-surface-muted p-0.5"
+      >
+        {EXAMPLES.map((entry) => (
+          <button
+            key={entry.id}
+            type="button"
+            role="tab"
+            aria-selected={example === entry.id}
+            onClick={() => setExample(entry.id)}
+            className={`rounded-md px-3 py-1.5 text-xs font-medium transition-colors focus:outline-none focus:ring-2 focus:ring-ink-subtle ${
+              example === entry.id
+                ? 'bg-surface text-ink shadow-sm'
+                : 'text-ink-muted hover:text-ink'
+            }`}
+          >
+            {entry.label}
+          </button>
+        ))}
+      </div>
+
+      <CodeBlock className="mt-3" code={active.code} />
+      <p className="mt-2 text-sm text-ink-muted">{active.note}</p>
+
+      <div className="mt-6 overflow-hidden rounded-lg border border-line">
+        <table className="w-full border-collapse text-sm">
+          <thead className="bg-surface-muted">
+            <tr>
+              <th
+                scope="col"
+                className="border-b border-line px-3 py-2 text-left text-xs font-semibold tracking-wide text-ink-muted uppercase"
+              >
+                Operator
+              </th>
+              <th
+                scope="col"
+                className="border-b border-line px-3 py-2 text-left text-xs font-semibold tracking-wide text-ink-muted uppercase"
+              >
+                Matches when
+              </th>
+            </tr>
+          </thead>
+          <tbody>
+            {OPERATOR_HELP.map((row) => (
+              <tr
+                key={row.operator}
+                className="border-b border-line/60 last:border-0"
+              >
+                <td className="px-3 py-2 font-mono text-xs text-ink-strong">
+                  {row.operator}
+                </td>
+                <td className="px-3 py-2 text-xs text-ink-muted">
+                  {row.description}
+                </td>
+              </tr>
+            ))}
+          </tbody>
+        </table>
+      </div>
+
+      <p className="mt-3 text-sm text-ink-muted">
+        A column that is not in the sheet is an error, not an empty result, so a
+        typo is reported instead of looking like a sheet with no matching rows.
+        Numbers are compared as numbers, so{' '}
+        <code className="font-mono">where=amount&gt;100</code> does what it
+        looks like rather than sorting{' '}
+        <code className="font-mono">&quot;9&quot;</code> after{' '}
+        <code className="font-mono">&quot;100&quot;</code>.
+      </p>
+    </section>
+  )
+}
+
+/** Worked examples for the query parameters, shown one at a time. */
+const EXAMPLES = [
+  {
+    id: 'filter',
+    label: 'Filter',
+    code: `curl "https://sheet2json.app/api/v1/extract?url=${'${SHEET_URL}'}&where=role=Developer" \\
+  -H "Authorization: Bearer $S2J_KEY"`,
+    note: 'Repeat where to AND filters together, so this one returns only developers named Ansh.',
+  },
+  {
+    id: 'order',
+    label: 'Top N',
+    code: `curl "https://sheet2json.app/api/v1/extract?url=${'${SHEET_URL}'}&sort=-amount&limit=5" \\
+  -H "Authorization: Bearer $S2J_KEY"`,
+    note: 'Sorting runs before limiting, so this is the five largest rows rather than five arbitrary ones.',
+  },
+  {
+    id: 'project',
+    label: 'Only some columns',
+    code: `curl "https://sheet2json.app/api/v1/extract?url=${'${SHEET_URL}'}&select=name,email" \\
+  -H "Authorization: Bearer $S2J_KEY"`,
+    note: 'The response carries only the columns you asked for, in the order you asked for them.',
+  },
+  {
+    id: 'all',
+    label: 'All together',
+    code: `curl "https://sheet2json.app/api/v1/extract?url=${'${SHEET_URL}'} \\
+  &where=status=Shipped&where=amount>=100 \\
+  &sort=-amount&limit=10&select=name,amount" \\
+  -H "Authorization: Bearer $S2J_KEY"`,
+    note: 'The usual shape: narrow hard, then take only the fields you need.',
+  },
+] as const
+
+const OPERATOR_HELP = [
+  { operator: '=', description: 'the value is exactly this' },
+  { operator: '!=', description: 'the value is anything but this' },
+  { operator: '~', description: 'the value contains this, ignoring case' },
+  {
+    operator: '>',
+    description: 'the value is greater (numbers compared as numbers)',
+  },
+  { operator: '>=', description: 'the value is greater or equal' },
+  { operator: '<', description: 'the value is less' },
+  { operator: '<=', description: 'the value is less or equal' },
+]
 
 function OtherEndpoints() {
   return (
@@ -389,7 +574,7 @@ function Errors() {
       <ul className="mt-3 space-y-1 text-sm text-ink-muted">
         <li>
           <code className="font-mono">400</code> &mdash; a missing or malformed
-          parameter
+          parameter, including an unknown column in a query
         </li>
         <li>
           <code className="font-mono">401</code> &mdash; no key, or an unknown

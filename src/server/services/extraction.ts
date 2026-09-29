@@ -1,5 +1,7 @@
 import { AppError } from '#lib/errors'
 import { getGoogleAccess } from '#server/auth/google-tokens'
+import { applyRowQuery } from '#lib/query'
+import type { RowQuery } from '#lib/query'
 import type { ExtractionDetail, ExtractionSummary, SheetRow } from '#lib/types'
 import { HISTORY_PAGE_SIZE } from '../config'
 import { getPrisma } from '../db/prisma'
@@ -24,13 +26,21 @@ export interface ExtractSheetOptions {
    * database write entirely rather than leaving an orphan row behind.
    */
   persist?: boolean
+  /**
+   * An optional `select` / `where` / `sort` / `limit` layer applied to the parsed
+   * rows before they are counted or stored.
+   *
+   * Only the API sets this. The browser UI always wants the whole sheet, so an
+   * absent query leaves the pipeline byte-for-byte what it was.
+   */
+  query?: RowQuery
 }
 
 /**
  * The end-to-end extraction pipeline:
  *
  *   URL -> validate -> spreadsheet id + gid -> fetch CSV -> parse CSV
- *       -> count rows/columns -> persist to PostgreSQL -> return
+ *       -> filter/sort/project -> count -> persist to PostgreSQL -> return
  *
  * Only the spreadsheet id and gid ever reach the network layer, and both are
  * validated against a strict character allow-list first.
@@ -55,9 +65,23 @@ export async function extractSheet(
     fetchImpl: options.fetchImpl,
     ...(accessToken ? { accessToken } : {}),
   })
-  const sheet = await parseSheetCsv(csv, { maxRows: options.maxRows })
+  const parsed = await parseSheetCsv(csv, { maxRows: options.maxRows })
 
-  const data: SheetRow[] = sheet.rows
+  // An unknown column is rejected here rather than silently yielding no rows.
+  const data =
+    options.query === undefined
+      ? parsed.rows
+      : applyRowQuery(parsed.rows, options.query)
+
+  // The counts describe what the caller actually received, so `?limit=5` on a
+  // 900-row sheet reports 5 rows rather than the 900 that were fetched.
+  const rowCount = data.length
+  const columnCount =
+    options.query?.select === null || options.query?.select === undefined
+      ? parsed.columnCount
+      : data[0] === undefined
+        ? 0
+        : Object.keys(data[0]).length
 
   // Anonymous extractions are not stored. There is no owner to file them under
   // and no way to list them, so persisting them would only grow the table.
@@ -68,8 +92,8 @@ export async function extractSheet(
       gid: reference.gid,
       title,
       sourceUrl: url.trim(),
-      rowCount: sheet.rowCount,
-      columnCount: sheet.columnCount,
+      rowCount,
+      columnCount,
       createdAt: new Date().toISOString(),
       isPrivate: accessToken !== undefined,
       data,
@@ -82,8 +106,8 @@ export async function extractSheet(
       gid: reference.gid,
       title,
       sourceUrl: url.trim(),
-      rowCount: sheet.rowCount,
-      columnCount: sheet.columnCount,
+      rowCount,
+      columnCount,
       data,
       userId: options.userId ?? null,
     },

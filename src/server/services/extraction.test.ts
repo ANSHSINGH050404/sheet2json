@@ -1,6 +1,7 @@
 import { afterAll, beforeAll, describe, expect, it } from 'bun:test'
 
 import type { AppError } from '#lib/errors'
+import { parseRowQuery } from '#lib/query'
 import type { ExtractionDetail } from '#lib/types'
 import { getPrisma } from '#server/db/prisma'
 import { extractSheet } from '#server/services/extraction'
@@ -117,6 +118,61 @@ describe('extractSheet failure paths (no database needed)', () => {
         }),
       ),
     ).toBe('SHEET_NOT_ACCESSIBLE')
+  })
+})
+
+describe('extractSheet with a row query (no database needed)', () => {
+  const CSV = [
+    'name,email,role,amount',
+    'Ansh,ansh@example.com,Developer,100',
+    'Rahul,rahul@example.com,Designer,25',
+    'Priya,priya@example.com,Developer,2500',
+  ].join('\n')
+
+  async function extract(query: string): Promise<ExtractionDetail> {
+    return extractSheet(URL, {
+      fetchImpl: mockFetch(CSV),
+      persist: false,
+      query: parseRowQuery(new URLSearchParams(query)),
+    })
+  }
+
+  it('returns every row when no query is given', async () => {
+    const result = await extract('')
+
+    expect(result.rowCount).toBe(3)
+    expect(result.columnCount).toBe(4)
+    expect(result.data).toHaveLength(3)
+  })
+
+  it('counts what the caller received, not what was fetched', async () => {
+    const result = await extract('limit=1')
+
+    expect(result.rowCount).toBe(1)
+    expect(result.data).toHaveLength(1)
+  })
+
+  it('counts only the projected columns', async () => {
+    const result = await extract('select=name,email')
+
+    expect(result.columnCount).toBe(2)
+    expect(Object.keys(result.data[0] as object)).toEqual(['name', 'email'])
+  })
+
+  it('filters, orders and projects in one pass', async () => {
+    const result = await extract(
+      'where=role=Developer&sort=-amount&select=name,amount',
+    )
+
+    expect(result.rowCount).toBe(2)
+    expect(result.data).toEqual([
+      { name: 'Priya', amount: '2500' },
+      { name: 'Ansh', amount: '100' },
+    ])
+  })
+
+  it('rejects an unknown column with INVALID_QUERY, after the fetch', async () => {
+    expect(await code(extract('select=emial'))).toBe('INVALID_QUERY')
   })
 })
 

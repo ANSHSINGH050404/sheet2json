@@ -109,6 +109,25 @@ Returns JSON by default; `?format=csv` and `?format=ndjson` return the rows in
 those shapes. The full reference is at **`/docs`**, or as JSON from
 **`GET /api/v1`**.
 
+Rows can be narrowed server-side, so pulling a few rows out of a large tab does
+not mean transferring all of them:
+
+```bash
+curl "https://YOUR_DOMAIN/api/v1/extract?url=...&where=role=Developer&sort=-amount&limit=5&select=name,amount" \
+  -H "Authorization: Bearer s2j_your_key"
+```
+
+- **`select`** — comma-separated columns, returned in the order you ask for.
+- **`where`** — one filter (`=`, `!=`, `~`, `>`, `>=`, `<`, `<=`). Repeat the
+  parameter to AND several together. Numeric columns compare as numbers, not
+  strings.
+- **`sort`** — columns to order by; a leading `-` sorts descending. Later columns
+  break ties.
+- **`limit`** — most rows to return, applied after filtering and sorting.
+
+A column that is not in the sheet is a `400`, not an empty result, so a typo is
+reported rather than looking like a sheet with no matching rows.
+
 Endpoints:
 
 | Method   | Path                       | Auth     | Purpose                                    |
@@ -156,6 +175,12 @@ matter:
 - **The API allows any origin without credentials.** The credential travels in a
   header, and the responses do not opt into credentialed requests, so there is no
   ambient authority for another site to spend.
+- **The query layer is a grammar, not an evaluator.** `select`, `where`, `sort`
+  and `limit` are a small hand-written parser with no `eval` and no nesting: the
+  parameters arrive in a URL from an anonymous caller, so the grammar has to be
+  small enough to reject without ambiguity. An unknown column is a `400` rather
+  than an empty result, because a typo and a sheet with no matching rows look
+  identical otherwise.
 
 ## Commands
 

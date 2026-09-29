@@ -102,6 +102,7 @@ export type SheetAgentPlan =
 export type AppErrorCode =
   | 'URL_REQUIRED'
   | 'INVALID_URL'
+  | 'INVALID_QUERY'
   | 'SHEET_NOT_ACCESSIBLE'
   | 'SHEET_NEEDS_AUTH'
   | 'GOOGLE_REAUTH_REQUIRED'

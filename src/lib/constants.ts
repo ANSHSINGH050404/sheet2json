@@ -20,6 +20,14 @@ export const SHEET_AGENT_MAX_COLUMN_NAME_LENGTH = 160
 /** Keep natural-language agent requests bounded before sending them to TypeSafe. */
 export const SHEET_AGENT_MAX_PROMPT_LENGTH = 500
 
+/**
+ * Ceiling on `?limit=`, whatever the sheet actually holds.
+ *
+ * The sheet is already capped at `MAX_ROWS`, so this is not a safety limit - it
+ * stops `limit=99999999` reading as a promise the endpoint cannot keep.
+ */
+export const QUERY_MAX_LIMIT = 10_000
+
 /** Staged hints shown while an extraction is running. Not a fake progress bar. */
 export const EXTRACTION_STAGES = [
   'Extracting spreadsheet...',
