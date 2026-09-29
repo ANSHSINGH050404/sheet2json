@@ -32,6 +32,17 @@ export const MAX_RESPONSE_BYTES = readInt(
 /** Time budget for a single request to the Google CSV endpoint. */
 export const FETCH_TIMEOUT_MS = readInt('FETCH_TIMEOUT_MS', 20_000, 1_000)
 
+/**
+ * Total attempts for one upstream fetch, including the first.
+ *
+ * A single transient 5xx from Google is currently a user-visible failure, so the
+ * data path retries the way the LLM path already does. `1` disables retrying.
+ */
+export const FETCH_RETRY_ATTEMPTS = readInt('FETCH_RETRY_ATTEMPTS', 3, 1)
+
+/** First backoff delay, doubled per attempt. Bounds the worst-case wait. */
+export const FETCH_RETRY_BASE_MS = readInt('FETCH_RETRY_BASE_MS', 250, 1)
+
 /** How many history rows the list requests. */
 export const HISTORY_PAGE_SIZE = readInt('HISTORY_PAGE_SIZE', 50, 1)
 

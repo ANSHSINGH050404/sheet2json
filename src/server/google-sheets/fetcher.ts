@@ -1,11 +1,16 @@
-import { AppError } from '#lib/errors'
+import { AppError, asAppError } from '#lib/errors'
 import { GOOGLE_SHEETS_HOSTNAME } from '#lib/validation'
 import type { GoogleSheetReference } from '#lib/types'
 import {
+  FETCH_RETRY_ATTEMPTS,
+  FETCH_RETRY_BASE_MS,
   FETCH_TIMEOUT_MS,
   GOOGLE_CSV_ENDPOINT,
   MAX_RESPONSE_BYTES,
 } from '../config'
+
+/** Ceiling on any single backoff wait, including one we took from `Retry-After`. */
+const MAX_BACKOFF_MS = 4_000
 
 const NOT_ACCESSIBLE_MESSAGE =
   'This Google Sheet could not be accessed. Share it as "Anyone with the link - Viewer", or connect your Google account to read a private sheet.'
@@ -19,6 +24,16 @@ export interface FetchCsvOptions {
   fetchImpl?: typeof fetch
   timeoutMs?: number
   maxBytes?: number
+  /**
+   * Injected in tests so a retry backoff does not make the suite wait.
+   * Defaults to a real timer.
+   */
+  sleepImpl?: (ms: number) => Promise<void>
+  /**
+   * Total attempts, including the first. Injected in tests so the retry paths can
+   * be exercised without the real attempt count.
+   */
+  retryAttempts?: number
   /**
    * The caller's Google access token, when the extraction runs on their behalf.
    *
@@ -61,10 +76,53 @@ export function buildCsvUrl(reference: GoogleSheetReference): string {
  *
  * Reads the body as a stream and aborts as soon as `maxBytes` is exceeded, so a
  * multi-gigabyte sheet can never be buffered into memory.
+ *
+ * A 429 or 5xx is retried with exponential backoff, because a transient Google
+ * blip should not read to the user as a failed extraction. A 4xx is not retried:
+ * a sheet that is private or gone will still be private or gone in 500ms, and
+ * retrying only spends the caller's rate limit to reach the same answer.
  */
 export async function fetchSheetCsv(
   reference: GoogleSheetReference,
   options: FetchCsvOptions = {},
+): Promise<string> {
+  const attempts = options.retryAttempts ?? FETCH_RETRY_ATTEMPTS
+  const sleep = options.sleepImpl ?? defaultSleep
+
+  let lastError: AppError | null = null
+
+  for (let attempt = 1; attempt <= attempts; attempt += 1) {
+    try {
+      return await attemptFetch(reference, options)
+    } catch (error) {
+      const appError = asAppError(error)
+      if (!appError.retryable || attempt === attempts) throw appError
+
+      lastError = appError
+      await sleep(backoffFor(attempt, appError.retryAfterMs))
+    }
+  }
+
+  // Unreachable: the loop either returns or throws on its final attempt.
+  throw lastError ?? new AppError('FETCH_FAILED', FETCH_FAILED_MESSAGE)
+}
+
+/** Exponential backoff, doubling per attempt, never waiting longer than 4s. */
+function backoffFor(attempt: number, retryAfterMs: number | null): number {
+  if (retryAfterMs !== null) return Math.min(retryAfterMs, MAX_BACKOFF_MS)
+  return Math.min(FETCH_RETRY_BASE_MS * 2 ** (attempt - 1), MAX_BACKOFF_MS)
+}
+
+function defaultSleep(ms: number): Promise<void> {
+  return new Promise((resolve) => {
+    setTimeout(resolve, ms)
+  })
+}
+
+/** One request, with no retry logic. */
+async function attemptFetch(
+  reference: GoogleSheetReference,
+  options: FetchCsvOptions,
 ): Promise<string> {
   const doFetch = options.fetchImpl ?? fetch
   const timeoutMs = options.timeoutMs ?? FETCH_TIMEOUT_MS
@@ -91,13 +149,18 @@ export async function fetchSheetCsv(
     // `redirect: 'error'` turns an open-redirect hop into a TypeError; that is
     // a refusal to follow, not a connectivity problem.
     if (cause instanceof DOMException && cause.name === 'TimeoutError') {
+      // Not retried: a request that ran out of time will usually run out again,
+      // and three attempts would exceed the platform's own request budget.
       throw new AppError(
         'FETCH_FAILED',
         'Google Sheets took too long to respond. Please try again.',
         cause,
       )
     }
-    throw new AppError('FETCH_FAILED', FETCH_FAILED_MESSAGE, cause)
+    // A dropped connection is worth one more go.
+    throw new AppError('FETCH_FAILED', FETCH_FAILED_MESSAGE, cause, {
+      retryable: true,
+    })
   }
 
   if (!response.ok) {
@@ -107,15 +170,35 @@ export async function fetchSheetCsv(
     if ([401, 403, 404].includes(response.status)) {
       throw new AppError('SHEET_NOT_ACCESSIBLE', NOT_ACCESSIBLE_MESSAGE)
     }
+
+    const retryable = response.status === 429 || response.status >= 500
     throw new AppError(
       'FETCH_FAILED',
       'Google Sheets returned an unexpected response. Please try again.',
       `status: ${response.status}`,
+      { retryable, retryAfterMs: readRetryAfter(response.headers) },
     )
   }
 
-  const body = await readBodyWithLimit(response, maxBytes)
-  return body
+  return readBodyWithLimit(response, maxBytes)
+}
+
+/**
+ * The upstream's `Retry-After`, in milliseconds, or null.
+ *
+ * Honoured so a throttled request waits as long as Google asked rather than
+ * backing off on our own schedule and being throttled again.
+ */
+function readRetryAfter(headers: Headers): number | null {
+  const raw = headers.get('retry-after')
+  if (raw === null) return null
+
+  const seconds = Number(raw)
+  if (Number.isFinite(seconds)) return Math.max(0, seconds * 1000)
+
+  const at = Date.parse(raw)
+  if (Number.isNaN(at)) return null
+  return Math.max(0, at - Date.now())
 }
 
 async function readBodyWithLimit(

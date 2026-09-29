@@ -88,9 +88,16 @@ describe('fetchSheetCsv', () => {
   it('maps other error statuses to FETCH_FAILED', async () => {
     const { impl } = mockFetch(() => new Response('boom', { status: 500 }))
 
-    expect(await code(fetchSheetCsv(REFERENCE, { fetchImpl: impl }))).toBe(
-      'FETCH_FAILED',
-    )
+    expect(
+      await code(
+        fetchSheetCsv(REFERENCE, {
+          fetchImpl: impl,
+          // This test is about the mapping, not the retrying; a real backoff
+          // would only make it slower.
+          retryAttempts: 1,
+        }),
+      ),
+    ).toBe('FETCH_FAILED')
   })
 
   it('maps a network error to FETCH_FAILED', async () => {
@@ -98,9 +105,11 @@ describe('fetchSheetCsv', () => {
       throw new TypeError('fetch failed')
     })
 
-    expect(await code(fetchSheetCsv(REFERENCE, { fetchImpl: impl }))).toBe(
-      'FETCH_FAILED',
-    )
+    expect(
+      await code(
+        fetchSheetCsv(REFERENCE, { fetchImpl: impl, retryAttempts: 1 }),
+      ),
+    ).toBe('FETCH_FAILED')
   })
 
   it('maps a timeout to FETCH_FAILED', async () => {
@@ -108,9 +117,11 @@ describe('fetchSheetCsv', () => {
       throw new DOMException('The operation timed out', 'TimeoutError')
     })
 
-    expect(await code(fetchSheetCsv(REFERENCE, { fetchImpl: impl }))).toBe(
-      'FETCH_FAILED',
-    )
+    expect(
+      await code(
+        fetchSheetCsv(REFERENCE, { fetchImpl: impl, retryAttempts: 1 }),
+      ),
+    ).toBe('FETCH_FAILED')
   })
 
   it('rejects an oversized body declared by content-length', async () => {
@@ -163,7 +174,7 @@ describe('fetchSheetCsv', () => {
     )
 
     try {
-      await fetchSheetCsv(REFERENCE, { fetchImpl: impl })
+      await fetchSheetCsv(REFERENCE, { fetchImpl: impl, retryAttempts: 1 })
       throw new Error('expected a throw')
     } catch (error) {
       const appError = error as AppError
@@ -174,5 +185,223 @@ describe('fetchSheetCsv', () => {
           'Google Sheets returned an unexpected response. Please try again.',
       })
     }
+  })
+})
+
+describe('fetchSheetCsv retrying', () => {
+  /** Records the backoff waits instead of taking them. */
+  function recordingSleep(): {
+    sleep: (ms: number) => Promise<void>
+    waits: () => number[]
+  } {
+    const waits: number[] = []
+    return {
+      sleep: async (ms: number) => {
+        waits.push(ms)
+      },
+      waits: () => waits,
+    }
+  }
+
+  it('retries a 500 and succeeds on a later attempt', async () => {
+    let attempt = 0
+    const { impl, calls } = mockFetch(() => {
+      attempt += 1
+      return attempt < 3
+        ? new Response('boom', { status: 500 })
+        : csvResponse('a\n1')
+    })
+    const { sleep, waits } = recordingSleep()
+
+    const body = await fetchSheetCsv(REFERENCE, {
+      fetchImpl: impl,
+      sleepImpl: sleep,
+    })
+
+    expect(body).toBe('a\n1')
+    expect(calls).toHaveLength(3)
+    expect(waits()).toHaveLength(2)
+  })
+
+  it('retries a 429 from Google', async () => {
+    let attempt = 0
+    const { impl, calls } = mockFetch(() => {
+      attempt += 1
+      return attempt === 1
+        ? new Response('slow down', { status: 429 })
+        : csvResponse('a\n1')
+    })
+    const { sleep } = recordingSleep()
+
+    await fetchSheetCsv(REFERENCE, { fetchImpl: impl, sleepImpl: sleep })
+
+    expect(calls).toHaveLength(2)
+  })
+
+  it('retries a dropped connection', async () => {
+    let attempt = 0
+    const { impl, calls } = mockFetch(() => {
+      attempt += 1
+      if (attempt === 1) throw new TypeError('fetch failed')
+      return csvResponse('a\n1')
+    })
+    const { sleep } = recordingSleep()
+
+    await fetchSheetCsv(REFERENCE, { fetchImpl: impl, sleepImpl: sleep })
+
+    expect(calls).toHaveLength(2)
+  })
+
+  it('backs off exponentially, doubling each attempt', async () => {
+    const { impl } = mockFetch(() => new Response('boom', { status: 503 }))
+    const { sleep, waits } = recordingSleep()
+
+    // Always failing, so the waits are only observable after the final throw.
+    expect(
+      await code(
+        fetchSheetCsv(REFERENCE, { fetchImpl: impl, sleepImpl: sleep }),
+      ),
+    ).toBe('FETCH_FAILED')
+
+    // Three attempts means two waits, and the second is double the first.
+    expect(waits()).toEqual([250, 500])
+  })
+
+  it('waits as long as the upstream asked via Retry-After', async () => {
+    const { impl } = mockFetch(
+      () =>
+        new Response('slow down', {
+          status: 429,
+          headers: { 'retry-after': '2' },
+        }),
+    )
+    const { sleep, waits } = recordingSleep()
+
+    expect(
+      await code(
+        fetchSheetCsv(REFERENCE, { fetchImpl: impl, sleepImpl: sleep }),
+      ),
+    ).toBe('FETCH_FAILED')
+
+    expect(waits()).toEqual([2000, 2000])
+  })
+
+  it('never waits longer than the backoff ceiling', async () => {
+    const { impl } = mockFetch(
+      () =>
+        new Response('slow down', {
+          status: 429,
+          headers: { 'retry-after': '600' },
+        }),
+    )
+    const { sleep, waits } = recordingSleep()
+
+    expect(
+      await code(
+        fetchSheetCsv(REFERENCE, { fetchImpl: impl, sleepImpl: sleep }),
+      ),
+    ).toBe('FETCH_FAILED')
+
+    for (const wait of waits()) expect(wait).toBeLessThanOrEqual(4000)
+  })
+
+  it('gives up after the attempt budget and reports FETCH_FAILED', async () => {
+    const { impl, calls } = mockFetch(
+      () => new Response('boom', { status: 500 }),
+    )
+    const { sleep } = recordingSleep()
+
+    expect(
+      await code(
+        fetchSheetCsv(REFERENCE, { fetchImpl: impl, sleepImpl: sleep }),
+      ),
+    ).toBe('FETCH_FAILED')
+    expect(calls).toHaveLength(3)
+  })
+
+  it('does not retry a 404, which will not become a 200', async () => {
+    // A private or deleted sheet stays that way. Retrying only spends the
+    // caller's rate limit to reach the same answer.
+    const { impl, calls } = mockFetch(
+      () => new Response('nope', { status: 404 }),
+    )
+    const { sleep, waits } = recordingSleep()
+
+    expect(
+      await code(
+        fetchSheetCsv(REFERENCE, { fetchImpl: impl, sleepImpl: sleep }),
+      ),
+    ).toBe('SHEET_NOT_ACCESSIBLE')
+    expect(calls).toHaveLength(1)
+    expect(waits()).toHaveLength(0)
+  })
+
+  it('does not retry a 403', async () => {
+    const { impl, calls } = mockFetch(() => new Response('no', { status: 403 }))
+    const { sleep, waits } = recordingSleep()
+
+    expect(
+      await code(
+        fetchSheetCsv(REFERENCE, { fetchImpl: impl, sleepImpl: sleep }),
+      ),
+    ).toBe('SHEET_NOT_ACCESSIBLE')
+    expect(calls).toHaveLength(1)
+    expect(waits()).toHaveLength(0)
+  })
+
+  it('does not retry a timeout, which would exceed the request budget', async () => {
+    const { impl, calls } = mockFetch(() => {
+      throw new DOMException('The operation timed out', 'TimeoutError')
+    })
+    const { sleep, waits } = recordingSleep()
+
+    expect(
+      await code(
+        fetchSheetCsv(REFERENCE, { fetchImpl: impl, sleepImpl: sleep }),
+      ),
+    ).toBe('FETCH_FAILED')
+    expect(calls).toHaveLength(1)
+    expect(waits()).toHaveLength(0)
+  })
+
+  it('does not retry when the sheet is too large', async () => {
+    const { impl, calls } = mockFetch(
+      () =>
+        new Response('a\n1', {
+          status: 200,
+          headers: { 'content-length': '999999' },
+        }),
+    )
+    const { sleep } = recordingSleep()
+
+    expect(
+      await code(
+        fetchSheetCsv(REFERENCE, {
+          fetchImpl: impl,
+          maxBytes: 1024,
+          sleepImpl: sleep,
+        }),
+      ),
+    ).toBe('SHEET_TOO_LARGE')
+    expect(calls).toHaveLength(1)
+  })
+
+  it('retries nothing at all when the budget is one attempt', async () => {
+    const { impl, calls } = mockFetch(
+      () => new Response('boom', { status: 500 }),
+    )
+    const { sleep, waits } = recordingSleep()
+
+    expect(
+      await code(
+        fetchSheetCsv(REFERENCE, {
+          fetchImpl: impl,
+          sleepImpl: sleep,
+          retryAttempts: 1,
+        }),
+      ),
+    ).toBe('FETCH_FAILED')
+    expect(calls).toHaveLength(1)
+    expect(waits()).toHaveLength(0)
   })
 })
