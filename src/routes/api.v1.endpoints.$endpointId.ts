@@ -1,18 +1,12 @@
 import { createFileRoute } from '@tanstack/react-router'
 
-import { AppError } from '#lib/errors'
 import { parseEndpointQuery } from '#lib/endpoints'
-import {
-  authenticate,
-  quotaHeaders,
-  retryAfterHeader,
-} from '#server/api/authenticate'
+import { authenticate, quotaHeaders } from '#server/api/authenticate'
 import { CORS_HEADERS, corsPreflight, methodNotAllowed } from '#server/api/cors'
 import { apiError, apiJson, toCsv, toNdjson } from '#server/api/response'
-import {
-  deleteSavedEndpoint,
-  getSavedEndpoint,
-} from '#server/services/endpoints'
+import { readApiOutputFormat } from '#server/api/output-format'
+import { corsOrRetry, requireApiUserId } from '#server/api/route-helpers'
+import { getSavedEndpoint } from '#server/services/endpoints'
 import { extractSheet } from '#server/services/extraction'
 import { API_CACHE_TTL_SECONDS } from '#server/config'
 
@@ -23,15 +17,15 @@ export const Route = createFileRoute('/api/v1/endpoints/$endpointId')({
       OPTIONS: () => corsPreflight(),
 
       GET: async ({ request, params }) => {
-        let limit = null as Awaited<
+        let rateLimit = null as Awaited<
           ReturnType<typeof authenticate>
         >['rateLimit']
 
         try {
           const auth = await authenticate(request.headers.get('authorization'))
-          limit = auth.rateLimit
-          const userId = requireUser(auth.caller.userId)
-          const format = readFormat(
+          rateLimit = auth.rateLimit
+          const userId = requireApiUserId(auth.caller.userId)
+          const format = readApiOutputFormat(
             new URL(request.url).searchParams.get('format'),
           )
           const endpoint = await getSavedEndpoint(params.endpointId, userId)
@@ -81,67 +75,12 @@ export const Route = createFileRoute('/api/v1/endpoints/$endpointId')({
             },
           )
         } catch (error) {
-          return apiError(error, corsOrRetry(error, limit))
+          return apiError(error, corsOrRetry(error, rateLimit))
         }
       },
 
-      DELETE: async ({ request, params }) => {
-        let limit = null as Awaited<
-          ReturnType<typeof authenticate>
-        >['rateLimit']
-
-        try {
-          const auth = await authenticate(request.headers.get('authorization'))
-          limit = auth.rateLimit
-          const userId = requireUser(auth.caller.userId)
-          const deleted = await deleteSavedEndpoint(params.endpointId, userId)
-          if (!deleted) {
-            throw new AppError(
-              'NOT_FOUND',
-              'That saved endpoint could not be found.',
-            )
-          }
-
-          return new Response(null, {
-            status: 204,
-            headers: { ...CORS_HEADERS, ...quotaHeaders(auth.rateLimit) },
-          })
-        } catch (error) {
-          return apiError(error, corsOrRetry(error, limit))
-        }
-      },
-
-      POST: () => methodNotAllowed('GET, DELETE, OPTIONS'),
+      POST: () => methodNotAllowed('GET, OPTIONS'),
+      DELETE: () => methodNotAllowed('GET, OPTIONS'),
     },
   },
 })
-
-type OutputFormat = 'json' | 'csv' | 'ndjson'
-
-function readFormat(value: string | null): OutputFormat {
-  if (value === null || value === '') return 'json'
-  if (value === 'json' || value === 'csv' || value === 'ndjson') return value
-  throw new AppError(
-    'INVALID_URL',
-    'Unsupported format. Use one of: json, csv, ndjson.',
-  )
-}
-
-function requireUser(userId: string | null): string {
-  if (!userId) {
-    throw new AppError(
-      'UNAUTHENTICATED',
-      'This endpoint requires an API key. Create one in Settings.',
-    )
-  }
-  return userId
-}
-
-function corsOrRetry(
-  error: unknown,
-  limit: Awaited<ReturnType<typeof authenticate>>['rateLimit'],
-): Record<string, string> {
-  return error instanceof AppError && error.code === 'RATE_LIMITED'
-    ? { ...CORS_HEADERS, ...retryAfterHeader(limit) }
-    : CORS_HEADERS
-}

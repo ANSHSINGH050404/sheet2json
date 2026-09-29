@@ -105,7 +105,8 @@ After extracting a sheet, choose **Save as a live API endpoint** to name the
 recipe, preview its column selection and filters, and get a stable URL. The URL
 reads current sheet data, applies the saved recipe, and requires one of your API
 keys. Reads use the API's short cache. Manage or delete saved endpoints from
-**Endpoints**.
+**Endpoints**. A stable endpoint ID does not grant access by itself; each request
+is scoped to the API key's account.
 
 ```bash
 curl "https://YOUR_DOMAIN/api/v1/endpoints/ENDPOINT_ID?format=csv" \
@@ -119,9 +120,6 @@ const response = await fetch(
 )
 const data = await response.json()
 ```
-
-Saved endpoints can also be listed or deleted with the API. They are scoped to
-the API key's account; an endpoint ID does not grant access to a private sheet.
 
 ```bash
 curl "https://YOUR_DOMAIN/api/v1/extract?url=https://docs.google.com/spreadsheets/d/SHEET_ID/edit" \
@@ -156,6 +154,7 @@ Endpoints:
 | Method   | Path                       | Auth     | Purpose                                    |
 | -------- | -------------------------- | -------- | ------------------------------------------ |
 | `GET`    | `/api/v1/extract?url=…`    | optional | Extract a sheet as JSON, CSV or NDJSON     |
+| `GET`    | `/api/v1/endpoints/{id}`   | key      | Fetch a saved live sheet recipe            |
 | `GET`    | `/api/v1/me`               | key      | Verify a key and read the remaining quota  |
 | `GET`    | `/api/v1/extractions`      | key      | List the extractions saved from the web UI |
 | `GET`    | `/api/v1/extractions/{id}` | key      | Read one saved extraction                  |

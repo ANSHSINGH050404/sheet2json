@@ -1,7 +1,11 @@
 import { describe, expect, it } from 'bun:test'
 
 import { AppError } from '#lib/errors'
-import { parseEndpointQuery, prepareEndpointQuery } from '#lib/endpoints'
+import {
+  describeSelectedSheetTab,
+  parseEndpointQuery,
+  prepareEndpointQuery,
+} from '#lib/endpoints'
 import type { SheetRow } from '#lib/types'
 
 const rows: SheetRow[] = [
@@ -72,5 +76,31 @@ describe('prepareEndpointQuery', () => {
     expect(() => parseEndpointQuery('url=https%3A%2F%2Fexample.com')).toThrow(
       'Unsupported saved endpoint option: url.',
     )
+  })
+})
+
+describe('describeSelectedSheetTab', () => {
+  it('names the tab selected in the Google Sheets link', () => {
+    expect(
+      describeSelectedSheetTab(
+        'https://docs.google.com/spreadsheets/d/sheet-id/edit#gid=123&title=Orders',
+      ),
+    ).toBe('Orders (gid 123)')
+  })
+
+  it('identifies the default tab when the link has no tab fragment', () => {
+    expect(
+      describeSelectedSheetTab(
+        'https://docs.google.com/spreadsheets/d/sheet-id/edit',
+      ),
+    ).toBe('the default tab')
+  })
+
+  it('ignores a malformed tab id', () => {
+    expect(
+      describeSelectedSheetTab(
+        'https://docs.google.com/spreadsheets/d/sheet-id/edit#gid=invalid',
+      ),
+    ).toBe('the default tab')
   })
 })

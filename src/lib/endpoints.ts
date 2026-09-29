@@ -22,6 +22,25 @@ export interface EndpointQueryPreview {
   columns: string[]
 }
 
+/** Describes the tab encoded in the source URL used for the current extraction. */
+export function describeSelectedSheetTab(sourceUrl: string): string {
+  try {
+    const fragment = new URL(sourceUrl).hash.replace(/^#/, '')
+    const params = new URLSearchParams(fragment)
+    const rawGid = params.get('gid')
+    const gid = rawGid && /^\d{1,19}$/.test(rawGid) ? rawGid : null
+    const title = params.get('title')?.trim()
+
+    if (title) return gid ? `${title} (gid ${gid})` : title
+    if (gid) return `gid ${gid}`
+  } catch {
+    // The extraction pipeline has already validated this URL; this is only a
+    // display hint, so fall through to the default-tab label if it is absent.
+  }
+
+  return 'the default tab'
+}
+
 const ENDPOINT_QUERY_PARAMETERS = new Set(['select', 'where', 'sort', 'limit'])
 
 /** Parses only the row-query options stored on an endpoint. */

@@ -1,13 +1,11 @@
 import { createFileRoute } from '@tanstack/react-router'
 
 import { AppError } from '#lib/errors'
-import {
-  authenticate,
-  quotaHeaders,
-  retryAfterHeader,
-} from '#server/api/authenticate'
+import { authenticate, quotaHeaders } from '#server/api/authenticate'
 import { CORS_HEADERS, corsPreflight } from '#server/api/cors'
 import { apiError, apiJson, toCsv, toNdjson } from '#server/api/response'
+import { readApiOutputFormat } from '#server/api/output-format'
+import { corsOrRetry } from '#server/api/route-helpers'
 import { parseRowQuery } from '#lib/query'
 import { extractSheet } from '#server/services/extraction'
 import { API_CACHE_TTL_SECONDS } from '#server/config'
@@ -35,16 +33,16 @@ export const Route = createFileRoute('/api/v1/extract')({
       OPTIONS: () => corsPreflight(),
 
       GET: async ({ request }) => {
-        let limit = null as Awaited<
+        let rateLimit = null as Awaited<
           ReturnType<typeof authenticate>
         >['rateLimit']
 
         try {
           const auth = await authenticate(request.headers.get('authorization'))
-          limit = auth.rateLimit
+          rateLimit = auth.rateLimit
 
           const query = new URL(request.url).searchParams
-          const format = readFormat(query.get('format'))
+          const format = readApiOutputFormat(query.get('format'))
           // Syntax is validated before the fetch, so a typo'd `where` fails
           // without spending a request on Google's CSV endpoint.
           const rowQuery = parseRowQuery(query)
@@ -98,18 +96,12 @@ export const Route = createFileRoute('/api/v1/extract')({
         } catch (error) {
           // A 429 is the one failure a client can act on, so it carries
           // `Retry-After` instead of leaving the caller to guess.
-          const extra =
-            error instanceof AppError && error.code === 'RATE_LIMITED'
-              ? { ...CORS_HEADERS, ...retryAfterHeader(limit) }
-              : CORS_HEADERS
-          return apiError(error, extra)
+          return apiError(error, corsOrRetry(error, rateLimit))
         }
       },
     },
   },
 })
-
-type OutputFormat = 'json' | 'csv' | 'ndjson'
 
 function requireUrl(value: string | null): string {
   if (value === null || value.trim() === '') {
@@ -119,18 +111,4 @@ function requireUrl(value: string | null): string {
     )
   }
   return value
-}
-
-/**
- * An unrecognised `format` is an error rather than a silent fallback to JSON: a
- * caller who typo'd `?format=csvv` and got JSON would have to debug their parser
- * instead of their URL.
- */
-function readFormat(value: string | null): OutputFormat {
-  if (value === null || value === '') return 'json'
-  if (value === 'json' || value === 'csv' || value === 'ndjson') return value
-  throw new AppError(
-    'INVALID_URL',
-    'Unsupported format. Use one of: json, csv, ndjson.',
-  )
 }

@@ -4,7 +4,7 @@ import { useEffect, useId, useMemo, useState } from 'react'
 import { DataTable } from '#components/data-table'
 import { useSessionUser } from '#hooks/use-session'
 import { savedEndpointsQueryKey } from '#hooks/use-saved-endpoints'
-import { prepareEndpointQuery } from '#lib/endpoints'
+import { describeSelectedSheetTab, prepareEndpointQuery } from '#lib/endpoints'
 import type { EndpointQueryDraft } from '#lib/endpoints'
 import { formatCount, unwrap } from '#lib/format'
 import type { SheetRow } from '#lib/types'
@@ -42,6 +42,7 @@ export function SaveEndpoint({
   const sortId = useId()
   const limitId = useId()
   const formId = useId()
+  const selectedTab = describeSelectedSheetTab(sourceUrl)
 
   useEffect(() => {
     setOrigin(window.location.origin)
@@ -117,6 +118,10 @@ export function SaveEndpoint({
           <p className="mt-1 text-xs text-ink-subtle">
             Reuse this sheet and its filters at a stable URL. Requests require
             your API key.
+          </p>
+          <p className="mt-1 text-xs text-ink-subtle">
+            Tab: {selectedTab}. To use another tab, select it in Google Sheets,
+            copy its link, and extract that tab first.
           </p>
         </div>
 

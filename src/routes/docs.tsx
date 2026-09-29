@@ -522,37 +522,26 @@ function SavedEndpoints() {
         ].join('\n')}
       />
       <dl className="mt-4 space-y-4">
-        {[
-          {
-            method: 'GET',
-            path: '/api/v1/endpoints',
-            description: "Lists the caller's saved endpoint recipes.",
-          },
-          {
-            method: 'GET',
-            path: '/api/v1/endpoints/{id}',
-            description:
-              'Fetches live rows using the saved recipe. Optional format: json (default), csv or ndjson.',
-          },
-          {
-            method: 'DELETE',
-            path: '/api/v1/endpoints/{id}',
-            description: "Deletes one of the caller's saved endpoint recipes.",
-          },
-        ].map((endpoint) => (
-          <div key={endpoint.path}>
-            <dt className="font-mono text-sm text-ink-strong">
-              <span className="mr-2 rounded bg-surface-raised px-1.5 py-0.5 text-xs font-semibold text-ink-muted">
-                {endpoint.method}
-              </span>
-              {endpoint.path}
-            </dt>
-            <dd className="mt-1 pl-1 text-sm text-ink-muted">
-              {endpoint.description}
-            </dd>
-          </div>
-        ))}
+        <div>
+          <dt className="font-mono text-sm text-ink-strong">
+            <span className="mr-2 rounded bg-surface-raised px-1.5 py-0.5 text-xs font-semibold text-ink-muted">
+              GET
+            </span>
+            /api/v1/endpoints/{'{id}'}
+          </dt>
+          <dd className="mt-1 pl-1 text-sm text-ink-muted">
+            Fetches live rows using the saved recipe. Optional format: json
+            (default), csv or ndjson.
+          </dd>
+        </div>
       </dl>
+      <p className="mt-4 text-sm text-ink-muted">
+        View or delete saved recipes from the signed-in{' '}
+        <a href="/endpoints" className="underline underline-offset-2">
+          Endpoints page
+        </a>
+        .
+      </p>
       <p className="mt-4 text-sm text-ink-muted">
         A saved endpoint can read a private sheet only with the Google
         permission connected to its owner account. The ID alone never grants

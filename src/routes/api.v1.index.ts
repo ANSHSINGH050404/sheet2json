@@ -52,23 +52,10 @@ export const Route = createFileRoute('/api/v1/')({
               },
               {
                 method: 'GET',
-                path: '/api/v1/endpoints',
-                description: "List the caller's saved live endpoint recipes.",
-                auth: 'required',
-              },
-              {
-                method: 'GET',
                 path: '/api/v1/endpoints/{id}',
                 description:
                   'Fetch live rows from the sheet using the saved query recipe. Supports json, csv or ndjson.',
                 query: { format: 'optional - json (default), csv, ndjson' },
-                auth: 'required',
-              },
-              {
-                method: 'DELETE',
-                path: '/api/v1/endpoints/{id}',
-                description:
-                  "Delete one of the caller's saved endpoint recipes.",
                 auth: 'required',
               },
               {

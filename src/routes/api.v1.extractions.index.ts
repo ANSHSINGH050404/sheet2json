@@ -1,13 +1,9 @@
 import { createFileRoute } from '@tanstack/react-router'
 
-import { AppError } from '#lib/errors'
-import {
-  authenticate,
-  quotaHeaders,
-  retryAfterHeader,
-} from '#server/api/authenticate'
+import { authenticate, quotaHeaders } from '#server/api/authenticate'
 import { CORS_HEADERS, corsPreflight, methodNotAllowed } from '#server/api/cors'
 import { apiError, apiJson } from '#server/api/response'
+import { corsOrRetry, requireApiUserId } from '#server/api/route-helpers'
 import { getExtractions } from '#server/services/extraction'
 import { HISTORY_PAGE_SIZE } from '#server/config'
 
@@ -27,23 +23,17 @@ export const Route = createFileRoute('/api/v1/extractions/')({
       OPTIONS: () => corsPreflight(),
 
       GET: async ({ request }) => {
-        let limit = null as Awaited<
+        let rateLimit = null as Awaited<
           ReturnType<typeof authenticate>
         >['rateLimit']
 
         try {
           const auth = await authenticate(request.headers.get('authorization'))
-          limit = auth.rateLimit
-
-          if (!auth.caller.userId) {
-            throw new AppError(
-              'UNAUTHENTICATED',
-              'This endpoint requires an API key. Create one in Settings.',
-            )
-          }
+          rateLimit = auth.rateLimit
+          const userId = requireApiUserId(auth.caller.userId)
 
           const extractions = await getExtractions(
-            auth.caller.userId,
+            userId,
             readLimit(new URL(request.url).searchParams.get('limit')),
           )
 
@@ -52,11 +42,7 @@ export const Route = createFileRoute('/api/v1/extractions/')({
             { headers: { ...CORS_HEADERS, ...quotaHeaders(auth.rateLimit) } },
           )
         } catch (error) {
-          const extra =
-            error instanceof AppError && error.code === 'RATE_LIMITED'
-              ? { ...CORS_HEADERS, ...retryAfterHeader(limit) }
-              : CORS_HEADERS
-          return apiError(error, extra)
+          return apiError(error, corsOrRetry(error, rateLimit))
         }
       },
 
