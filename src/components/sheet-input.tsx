@@ -1,6 +1,8 @@
 import { useId, useState } from 'react'
 import type { FormEvent } from 'react'
 
+import { sampleSheetUrl } from '#lib/sample'
+
 export interface SheetInputProps {
   onSubmit: (url: string) => void
   isPending: boolean
@@ -21,6 +23,11 @@ export interface SheetInputProps {
  *
  * The hint under the input is the honest answer to "can I paste my private
  * sheet?", which depends entirely on whether this visitor has a Google grant.
+ *
+ * The "no sheet handy?" button exists because the input is otherwise the first
+ * thing a new visitor meets, and it is a box that demands a resource they do not
+ * have yet. It runs the demo sheet through the normal submit path, so the first
+ * click produces a real extraction rather than a mockup.
  */
 export function SheetInput({
   onSubmit,
@@ -34,6 +41,7 @@ export function SheetInput({
   const [localError, setLocalError] = useState<string | null>(null)
   const inputId = useId()
   const errorId = useId()
+  const demoUrl = sampleSheetUrl()
 
   const shownError = localError ?? error
 
@@ -46,6 +54,13 @@ export function SheetInput({
     }
     setLocalError(null)
     onSubmit(url)
+  }
+
+  /** Fills the input and submits in one step, rather than making them press two buttons. */
+  function handleDemo() {
+    setValue(demoUrl)
+    setLocalError(null)
+    onSubmit(demoUrl)
   }
 
   return (
@@ -84,6 +99,16 @@ export function SheetInput({
           {isPending ? 'Extracting...' : 'Extract Data'}
         </button>
       </div>
+
+      {!isPending ? (
+        <button
+          type="button"
+          onClick={handleDemo}
+          className="mt-3 text-xs font-medium text-ink-strong underline decoration-line-strong underline-offset-4 transition-colors hover:decoration-ink focus:outline-none focus:ring-2 focus:ring-ink-subtle"
+        >
+          No sheet handy? Try one now
+        </button>
+      ) : null}
 
       <p className="mt-3 text-xs text-ink-subtle">
         {isSignedIn && googleConnected
