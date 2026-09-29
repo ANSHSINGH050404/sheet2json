@@ -60,14 +60,15 @@ describe.skipIf(!hasDatabase)('saved endpoints', () => {
 
   it('creates a live recipe, lists it, and limits it to its owner', async () => {
     const [listed] = await listSavedEndpoints(userId)
+    if (!listed) throw new Error('Expected the saved endpoint to be listed.')
 
-    expect(listed?.id).toBe(endpointId)
-    expect(listed?.name).toBe('Developer names')
-    expect(listed?.sourceUrl).toBe(SOURCE_URL)
-    expect(new URLSearchParams(listed?.query ?? '').get('select')).toBe('name')
+    expect(listed.id).toBe(endpointId)
+    expect(listed.name).toBe('Developer names')
+    expect(listed.sourceUrl).toBe(SOURCE_URL)
+    expect(listed.recipe.select).toEqual(['name'])
 
     const endpoint = await getSavedEndpoint(endpointId, userId)
-    expect(endpoint.query).toBe(listed?.query ?? '')
+    expect(endpoint.recipe).toEqual(listed.recipe)
 
     let foreignReadCode = ''
     try {

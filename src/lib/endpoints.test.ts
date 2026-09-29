@@ -2,6 +2,7 @@ import { describe, expect, it } from 'bun:test'
 
 import { AppError } from '#lib/errors'
 import {
+  describeEndpointRecipe,
   describeSelectedSheetTab,
   parseEndpointQuery,
   prepareEndpointQuery,
@@ -76,6 +77,23 @@ describe('prepareEndpointQuery', () => {
     expect(() => parseEndpointQuery('url=https%3A%2F%2Fexample.com')).toThrow(
       'Unsupported saved endpoint option: url.',
     )
+  })
+})
+
+describe('describeEndpointRecipe', () => {
+  it('renders a saved query recipe in a readable form', () => {
+    expect(
+      describeEndpointRecipe(
+        parseEndpointQuery(
+          'select=name%2Cemail&where=role%3DDeveloper&sort=-amount&limit=5',
+        ),
+      ),
+    ).toEqual([
+      'columns: name, email',
+      'where role=Developer',
+      'sort: -amount',
+      'limit: 5',
+    ])
   })
 })
 

@@ -96,7 +96,7 @@ function toSummary(record: {
     id: record.id,
     name: record.name,
     sourceUrl: record.sourceUrl,
-    query: record.query,
+    recipe: parseEndpointQuery(record.query),
     createdAt: record.createdAt.toISOString(),
   }
 }

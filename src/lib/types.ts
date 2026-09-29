@@ -5,6 +5,8 @@
  * so it can safely be bundled into the browser.
  */
 
+import type { RowQuery } from './query'
+
 /** A validated pointer to a Google Sheet. */
 export interface GoogleSheetReference {
   spreadsheetId: string
@@ -158,7 +160,7 @@ export interface SavedEndpointSummary {
   id: string
   name: string
   sourceUrl: string
-  query: string
+  recipe: RowQuery
   createdAt: string
 }
 

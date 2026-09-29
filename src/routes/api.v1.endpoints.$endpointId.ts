@@ -1,9 +1,12 @@
 import { createFileRoute } from '@tanstack/react-router'
 
-import { parseEndpointQuery } from '#lib/endpoints'
 import { authenticate, quotaHeaders } from '#server/api/authenticate'
 import { CORS_HEADERS, corsPreflight, methodNotAllowed } from '#server/api/cors'
-import { apiError, apiRowsResponse } from '#server/api/response'
+import {
+  apiCacheHeaders,
+  apiError,
+  apiRowsResponse,
+} from '#server/api/response'
 import { readApiOutputFormat } from '#server/api/output-format'
 import { corsOrRetry, requireApiUserId } from '#server/api/route-helpers'
 import { getSavedEndpoint } from '#server/services/endpoints'
@@ -32,17 +35,14 @@ export const Route = createFileRoute('/api/v1/endpoints/$endpointId')({
           const result = await extractSheet(endpoint.sourceUrl, {
             userId,
             persist: false,
-            query: parseEndpointQuery(endpoint.query),
+            query: endpoint.recipe,
           })
 
           const headers: Record<string, string> = {
             ...CORS_HEADERS,
             ...quotaHeaders(auth.rateLimit),
-            'cache-control': 'no-store',
+            ...apiCacheHeaders(API_CACHE_TTL_SECONDS),
             vary: 'Authorization',
-            ...(API_CACHE_TTL_SECONDS > 0
-              ? { 'cache-control': `private, max-age=${API_CACHE_TTL_SECONDS}` }
-              : {}),
           }
 
           return apiRowsResponse({

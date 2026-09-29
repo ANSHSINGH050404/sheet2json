@@ -58,6 +58,24 @@ export function parseEndpointQuery(query: string): RowQuery {
   return parseRowQuery(params)
 }
 
+/** Human-readable row-query settings for the saved endpoint list. */
+export function describeEndpointRecipe(recipe: RowQuery): string[] {
+  return [
+    recipe.select ? `columns: ${recipe.select.join(', ')}` : null,
+    ...recipe.conditions.map(
+      ({ column, operator, value }) => `where ${column}${operator}${value}`,
+    ),
+    recipe.sort.length > 0
+      ? `sort: ${recipe.sort
+          .map(({ column, direction }) =>
+            direction === 'desc' ? `-${column}` : column,
+          )
+          .join(', ')}`
+      : null,
+    recipe.limit !== null ? `limit: ${recipe.limit}` : null,
+  ].filter((part): part is string => part !== null)
+}
+
 /**
  * Builds and validates the query stored on a saved endpoint, then previews the
  * same recipe against the already-loaded sheet rows.

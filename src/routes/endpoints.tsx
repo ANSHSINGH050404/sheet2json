@@ -9,6 +9,7 @@ import {
 } from '#hooks/use-saved-endpoints'
 import { useSessionUser } from '#hooks/use-session'
 import { CLIPBOARD_COPY_ERROR, copyTextToClipboard } from '#lib/clipboard'
+import { describeEndpointRecipe } from '#lib/endpoints'
 import { buildSavedEndpointExamples } from '#lib/endpoint-examples'
 import { formatAbsolute, unwrap } from '#lib/format'
 import type { SavedEndpointSummary } from '#lib/types'
@@ -147,13 +148,7 @@ function EndpointCard({
   onDelete: () => void
 }) {
   const examples = buildSavedEndpointExamples(endpoint.id, origin)
-  const params = new URLSearchParams(endpoint.query)
-  const description = [
-    params.get('select') ? `columns: ${params.get('select')}` : null,
-    ...params.getAll('where').map((condition) => `where ${condition}`),
-    params.get('sort') ? `sort: ${params.get('sort')}` : null,
-    params.get('limit') ? `limit: ${params.get('limit')}` : null,
-  ].filter((part): part is string => part !== null)
+  const description = describeEndpointRecipe(endpoint.recipe)
 
   return (
     <article className="rounded-xl border border-line bg-surface p-5 shadow-sm sm:p-6">
