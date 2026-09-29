@@ -43,6 +43,36 @@ export const FETCH_RETRY_ATTEMPTS = readInt('FETCH_RETRY_ATTEMPTS', 3, 1)
 /** First backoff delay, doubled per attempt. Bounds the worst-case wait. */
 export const FETCH_RETRY_BASE_MS = readInt('FETCH_RETRY_BASE_MS', 250, 1)
 
+/**
+ * How long a parsed sheet may be reused before it is fetched again.
+ *
+ * This is the difference between one request to Google per caller and one per
+ * *user*, which matters because the published live table polls on every open tab.
+ * `0` disables the cache, in which case every request reaches Google.
+ */
+export const SHEET_CACHE_TTL_SECONDS = readInt('SHEET_CACHE_TTL_SECONDS', 60, 0)
+
+/**
+ * Most distinct sheets held in memory at once.
+ *
+ * A serverless instance has a fixed memory ceiling and entries are whole sheets,
+ * so the cache is bounded by count and evicted least-recently-used.
+ */
+export const SHEET_CACHE_MAX_ENTRIES = readInt('SHEET_CACHE_MAX_ENTRIES', 64, 1)
+
+/**
+ * Largest sheet worth caching, in bytes of CSV.
+ *
+ * The byte limit for a single download is 10MB; holding several of those would
+ * be a memory problem, so oversized sheets are simply never cached and every
+ * request reads them fresh.
+ */
+export const SHEET_CACHE_MAX_ENTRY_BYTES = readInt(
+  'SHEET_CACHE_MAX_ENTRY_BYTES',
+  1024 * 1024,
+  1024,
+)
+
 /** How many history rows the list requests. */
 export const HISTORY_PAGE_SIZE = readInt('HISTORY_PAGE_SIZE', 50, 1)
 
