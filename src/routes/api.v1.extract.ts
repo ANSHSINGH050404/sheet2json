@@ -3,7 +3,11 @@ import { createFileRoute } from '@tanstack/react-router'
 import { AppError } from '#lib/errors'
 import { authenticate, quotaHeaders } from '#server/api/authenticate'
 import { CORS_HEADERS, corsPreflight } from '#server/api/cors'
-import { apiError, apiRowsResponse } from '#server/api/response'
+import {
+  apiCacheHeaders,
+  apiError,
+  apiRowsResponse,
+} from '#server/api/response'
 import { readApiOutputFormat } from '#server/api/output-format'
 import { corsOrRetry } from '#server/api/route-helpers'
 import { parseRowQuery } from '#lib/query'
@@ -60,9 +64,7 @@ export const Route = createFileRoute('/api/v1/extract')({
           const headers: Record<string, string> = {
             ...CORS_HEADERS,
             ...quotaHeaders(auth.rateLimit),
-            ...(API_CACHE_TTL_SECONDS > 0
-              ? { 'cache-control': `private, max-age=${API_CACHE_TTL_SECONDS}` }
-              : {}),
+            ...apiCacheHeaders(API_CACHE_TTL_SECONDS),
           }
 
           return apiRowsResponse({

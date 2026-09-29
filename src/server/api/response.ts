@@ -69,6 +69,14 @@ export function apiJson(
   })
 }
 
+/** Cache policy shared by API routes that return owner-specific sheet data. */
+export function apiCacheHeaders(ttlSeconds: number): Record<string, string> {
+  return {
+    'cache-control':
+      ttlSeconds > 0 ? `private, max-age=${ttlSeconds}` : 'no-store',
+  }
+}
+
 /**
  * A JSON error response.
  *

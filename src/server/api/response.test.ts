@@ -11,6 +11,7 @@ import {
 import {
   apiError,
   apiJson,
+  apiCacheHeaders,
   apiRowsResponse,
   toCsv,
   toNdjson,
@@ -155,6 +156,18 @@ describe('apiJson', () => {
       { headers: { 'cache-control': 'private, max-age=60' } },
     )
     expect(response.headers.get('cache-control')).toBe('private, max-age=60')
+  })
+})
+
+describe('apiCacheHeaders', () => {
+  it('marks responses private for the configured short cache', () => {
+    expect(apiCacheHeaders(60)).toEqual({
+      'cache-control': 'private, max-age=60',
+    })
+  })
+
+  it('prevents caching when the cache is disabled', () => {
+    expect(apiCacheHeaders(0)).toEqual({ 'cache-control': 'no-store' })
   })
 })
 
