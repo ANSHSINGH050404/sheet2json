@@ -79,6 +79,22 @@ Only the user's request and column names are sent to TypeSafe; calculations and
 exports use rows already loaded in the app. The assistant never writes to a
 sheet or triggers external actions.
 
+## Product analytics
+
+Set `VITE_POSTHOG_KEY` and `VITE_POSTHOG_HOST` in `.env` (or `.env.local`) and
+your deployment environment. Use the project key and regional host from PostHog
+Project Settings. PostHog tracks route categories, extraction completion,
+assistant usage, share copies, and downloads. Autocapture and session replay are
+disabled; prompts, sheet rows, and sheet URLs are not sent.
+
+Vercel Web Analytics is also installed. Enable it in the Vercel project's
+**Analytics** settings; no Vercel key is needed. Its pageview events have query
+strings removed and history record IDs normalized before they are sent.
+
+Vercel Web Analytics is also installed; enable it under your Vercel project's
+**Analytics** settings. Its pageview events have query strings removed and
+history IDs normalized before they are sent.
+
 ## Using the API
 
 Create a key in **Settings** after signing in. Keys are shown once, at creation,

@@ -3,6 +3,7 @@ import { useEffect, useId, useState } from 'react'
 
 import { DataTable } from '#components/data-table'
 import { formatCount, unwrap } from '#lib/format'
+import { trackAnalytics } from '#lib/analytics'
 import { rowsToCsv } from '#lib/csv'
 import { executeSheetAgentPlan } from '#lib/sheet-agent'
 import type { SheetAgentOutput } from '#lib/sheet-agent'
@@ -43,10 +44,17 @@ export function SheetAssistant({
   const requestId = useId()
   const mutation = useMutation({
     mutationFn: async (prompt: string) => {
+      trackAnalytics({ event: 'sheet_assistant_requested' })
       const plan = await planSheetAgentFn({
         data: { request: prompt, columns },
       }).then(unwrap)
-      return executeSheetAgentPlan(prompt, rows, columns, plan)
+      const output = executeSheetAgentPlan(prompt, rows, columns, plan)
+      trackAnalytics({
+        event: 'sheet_assistant_completed',
+        action: plan.action,
+        result_kind: output.kind,
+      })
+      return output
     },
   })
   const reset = mutation.reset
@@ -283,6 +291,11 @@ function downloadRows(
   anchor.click()
   anchor.remove()
   URL.revokeObjectURL(url)
+  trackAnalytics({
+    event: 'sheet_data_downloaded',
+    format,
+    row_count: rows.length,
+  })
 }
 
 function sanitiseFileName(name: string): string {

@@ -11,12 +11,16 @@ import {
   useRouter,
   useRouterState,
 } from '@tanstack/react-router'
+import { Analytics } from '@vercel/analytics/react'
+import type { BeforeSendEvent } from '@vercel/analytics/react'
 import { useState } from 'react'
 import type { ReactNode } from 'react'
 
 import appCss from '../styles.css?url'
+import { AnalyticsTracker } from '#components/analytics-tracker'
 import { ThemeToggle } from '#components/theme-toggle'
 import { sessionQueryKey, useSessionUser } from '#hooks/use-session'
+import { sanitizeAnalyticsUrl } from '#lib/analytics'
 import { unwrap } from '#lib/format'
 import { THEME_SCRIPT } from '#lib/theme'
 import { signOutFn } from '#server/api/auth'
@@ -58,6 +62,13 @@ function createQueryClient() {
   })
 }
 
+function sanitizeVercelAnalyticsEvent(
+  event: BeforeSendEvent,
+): BeforeSendEvent | null {
+  const url = sanitizeAnalyticsUrl(event.url)
+  return url ? { ...event, url } : null
+}
+
 function RootDocument({ children }: { children: ReactNode }) {
   // One client per render tree. Creating it in module scope would share a cache
   // between concurrent server renders.
@@ -76,6 +87,8 @@ function RootDocument({ children }: { children: ReactNode }) {
       </head>
       <body className="flex min-h-screen flex-col bg-surface text-ink antialiased">
         <QueryClientProvider client={queryClient}>
+          <AnalyticsTracker />
+
           {!isEmbedView ? (
             <a
               href="#main"
@@ -114,6 +127,7 @@ function RootDocument({ children }: { children: ReactNode }) {
           {!isEmbedView ? <SiteFooter /> : null}
         </QueryClientProvider>
 
+        <Analytics beforeSend={sanitizeVercelAnalyticsEvent} />
         <Scripts />
       </body>
     </html>

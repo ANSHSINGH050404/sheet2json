@@ -1,5 +1,6 @@
 import { useState } from 'react'
 
+import { trackAnalytics } from '#lib/analytics'
 import { buildSheetEmbedCode, buildSharedSheetUrl } from '#lib/share'
 
 export interface ShareActionsProps {
@@ -10,10 +11,15 @@ export interface ShareActionsProps {
 export function ShareActions({ sourceUrl }: ShareActionsProps) {
   const [message, setMessage] = useState<string | null>(null)
 
-  async function copy(value: string, successMessage: string) {
+  async function copy(
+    value: string,
+    successMessage: string,
+    kind: 'link' | 'embed',
+  ) {
     try {
       await navigator.clipboard.writeText(value)
       setMessage(successMessage)
+      trackAnalytics({ event: 'share_asset_copied', kind })
     } catch {
       setMessage('Could not copy. Check your browser clipboard permissions.')
     }
@@ -36,6 +42,7 @@ export function ShareActions({ sourceUrl }: ShareActionsProps) {
               void copy(
                 buildSharedSheetUrl(sourceUrl, window.location.origin),
                 'Live table link copied.',
+                'link',
               )
             }
             className="rounded-md border border-line-strong bg-surface px-3 py-1.5 text-xs font-semibold text-ink-strong transition-colors hover:bg-surface-muted focus:outline-none focus:ring-2 focus:ring-ink-subtle focus:ring-offset-2"
@@ -48,6 +55,7 @@ export function ShareActions({ sourceUrl }: ShareActionsProps) {
               void copy(
                 buildSheetEmbedCode(sourceUrl, window.location.origin),
                 'Embed code copied.',
+                'embed',
               )
             }
             className="rounded-md border border-line-strong bg-surface px-3 py-1.5 text-xs font-semibold text-ink-strong transition-colors hover:bg-surface-muted focus:outline-none focus:ring-2 focus:ring-ink-subtle focus:ring-offset-2"

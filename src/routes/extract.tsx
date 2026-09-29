@@ -12,6 +12,7 @@ import {
 } from '#hooks/use-extractions'
 import { useSessionUser } from '#hooks/use-session'
 import { unwrap } from '#lib/format'
+import { trackAnalytics } from '#lib/analytics'
 import { extractSheetFn } from '#server/api/extractions'
 
 export const Route = createFileRoute('/extract')({
@@ -62,7 +63,12 @@ function ExtractPage() {
 
   const extract = useMutation({
     mutationFn: (url: string) => extractSheetFn({ data: { url } }).then(unwrap),
-    onSuccess: () => {
+    onSuccess: (extraction) => {
+      trackAnalytics({
+        event: 'sheet_extracted',
+        row_count: extraction.rowCount,
+        column_count: extraction.columnCount,
+      })
       // A new row landed in this user's history; refresh it when they go there.
       void queryClient.invalidateQueries({ queryKey: extractionsQueryKey })
     },
