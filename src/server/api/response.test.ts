@@ -8,7 +8,13 @@ import {
   readBearerKey,
   retryAfterHeader,
 } from '#server/api/authenticate'
-import { apiError, apiJson, toCsv, toNdjson } from '#server/api/response'
+import {
+  apiError,
+  apiJson,
+  apiRowsResponse,
+  toCsv,
+  toNdjson,
+} from '#server/api/response'
 import { CORS_HEADERS, corsPreflight, methodNotAllowed } from '#server/api/cors'
 
 describe('readBearerKey', () => {
@@ -149,6 +155,53 @@ describe('apiJson', () => {
       { headers: { 'cache-control': 'private, max-age=60' } },
     )
     expect(response.headers.get('cache-control')).toBe('private, max-age=60')
+  })
+})
+
+describe('apiRowsResponse', () => {
+  const rows = [{ name: 'Ansh' }]
+  const jsonBody = { data: rows }
+  const headers = { 'x-request-id': 'request-1' }
+
+  it('uses the JSON body and shared headers for JSON output', async () => {
+    const response = apiRowsResponse({
+      format: 'json',
+      rows,
+      jsonBody,
+      headers,
+    })
+
+    expect(response.headers.get('content-type')).toContain('application/json')
+    expect(response.headers.get('x-request-id')).toBe('request-1')
+    expect(await response.json()).toEqual(jsonBody)
+  })
+
+  it('serializes rows as CSV', async () => {
+    const response = apiRowsResponse({
+      format: 'csv',
+      rows,
+      jsonBody,
+      headers,
+    })
+
+    expect(response.headers.get('content-type')).toBe('text/csv; charset=utf-8')
+    expect(response.headers.get('x-request-id')).toBe('request-1')
+    expect(await response.text()).toBe('name\nAnsh')
+  })
+
+  it('serializes rows as NDJSON', async () => {
+    const response = apiRowsResponse({
+      format: 'ndjson',
+      rows,
+      jsonBody,
+      headers,
+    })
+
+    expect(response.headers.get('content-type')).toBe(
+      'application/x-ndjson; charset=utf-8',
+    )
+    expect(response.headers.get('x-request-id')).toBe('request-1')
+    expect(await response.text()).toBe('{"name":"Ansh"}')
   })
 })
 

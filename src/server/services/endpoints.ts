@@ -5,6 +5,14 @@ import type { SavedEndpointInput } from '#lib/validation'
 import { getPrisma } from '#server/db/prisma'
 import { extractSheet } from '#server/services/extraction'
 
+const SAVED_ENDPOINT_SELECT = {
+  id: true,
+  name: true,
+  sourceUrl: true,
+  query: true,
+  createdAt: true,
+} as const
+
 /**
  * Creates a named, live recipe after checking that its source and query work for
  * this account. Only the recipe is stored; each API request fetches fresh rows.
@@ -30,13 +38,7 @@ export async function createSavedEndpoint(
       sourceUrl: input.sourceUrl,
       query: input.query,
     },
-    select: {
-      id: true,
-      name: true,
-      sourceUrl: true,
-      query: true,
-      createdAt: true,
-    },
+    select: SAVED_ENDPOINT_SELECT,
   })
 
   return toSummary(record)
@@ -49,13 +51,7 @@ export async function listSavedEndpoints(
   const records = await getPrisma().savedEndpoint.findMany({
     where: { userId },
     orderBy: { createdAt: 'desc' },
-    select: {
-      id: true,
-      name: true,
-      sourceUrl: true,
-      query: true,
-      createdAt: true,
-    },
+    select: SAVED_ENDPOINT_SELECT,
   })
 
   return records.map(toSummary)
@@ -68,13 +64,7 @@ export async function getSavedEndpoint(
 ): Promise<SavedEndpointSummary> {
   const record = await getPrisma().savedEndpoint.findFirst({
     where: { id, userId },
-    select: {
-      id: true,
-      name: true,
-      sourceUrl: true,
-      query: true,
-      createdAt: true,
-    },
+    select: SAVED_ENDPOINT_SELECT,
   })
 
   if (!record) {

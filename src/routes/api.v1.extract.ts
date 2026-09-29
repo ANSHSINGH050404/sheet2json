@@ -3,7 +3,7 @@ import { createFileRoute } from '@tanstack/react-router'
 import { AppError } from '#lib/errors'
 import { authenticate, quotaHeaders } from '#server/api/authenticate'
 import { CORS_HEADERS, corsPreflight } from '#server/api/cors'
-import { apiError, apiJson, toCsv, toNdjson } from '#server/api/response'
+import { apiError, apiRowsResponse } from '#server/api/response'
 import { readApiOutputFormat } from '#server/api/output-format'
 import { corsOrRetry } from '#server/api/route-helpers'
 import { parseRowQuery } from '#lib/query'
@@ -65,34 +65,21 @@ export const Route = createFileRoute('/api/v1/extract')({
               : {}),
           }
 
-          if (format === 'json') {
-            return apiJson(
-              {
-                spreadsheetId: result.spreadsheetId,
-                gid: result.gid,
-                title: result.title,
-                sourceUrl: result.sourceUrl,
-                rowCount: result.rowCount,
-                columnCount: result.columnCount,
-                extractedAt: result.createdAt,
-                data: result.data,
-              },
-              { headers },
-            )
-          }
-
-          return new Response(
-            format === 'csv' ? toCsv(result.data) : toNdjson(result.data),
-            {
-              headers: {
-                ...headers,
-                'content-type':
-                  format === 'csv'
-                    ? 'text/csv; charset=utf-8'
-                    : 'application/x-ndjson; charset=utf-8',
-              },
+          return apiRowsResponse({
+            format,
+            rows: result.data,
+            jsonBody: {
+              spreadsheetId: result.spreadsheetId,
+              gid: result.gid,
+              title: result.title,
+              sourceUrl: result.sourceUrl,
+              rowCount: result.rowCount,
+              columnCount: result.columnCount,
+              extractedAt: result.createdAt,
+              data: result.data,
             },
-          )
+            headers,
+          })
         } catch (error) {
           // A 429 is the one failure a client can act on, so it carries
           // `Retry-After` instead of leaving the caller to guess.

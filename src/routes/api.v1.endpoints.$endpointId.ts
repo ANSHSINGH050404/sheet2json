@@ -3,7 +3,7 @@ import { createFileRoute } from '@tanstack/react-router'
 import { parseEndpointQuery } from '#lib/endpoints'
 import { authenticate, quotaHeaders } from '#server/api/authenticate'
 import { CORS_HEADERS, corsPreflight, methodNotAllowed } from '#server/api/cors'
-import { apiError, apiJson, toCsv, toNdjson } from '#server/api/response'
+import { apiError, apiRowsResponse } from '#server/api/response'
 import { readApiOutputFormat } from '#server/api/output-format'
 import { corsOrRetry, requireApiUserId } from '#server/api/route-helpers'
 import { getSavedEndpoint } from '#server/services/endpoints'
@@ -45,35 +45,22 @@ export const Route = createFileRoute('/api/v1/endpoints/$endpointId')({
               : {}),
           }
 
-          if (format === 'json') {
-            return apiJson(
-              {
-                endpoint: { id: endpoint.id, name: endpoint.name },
-                spreadsheetId: result.spreadsheetId,
-                gid: result.gid,
-                title: result.title,
-                sourceUrl: result.sourceUrl,
-                rowCount: result.rowCount,
-                columnCount: result.columnCount,
-                extractedAt: result.createdAt,
-                data: result.data,
-              },
-              { headers },
-            )
-          }
-
-          return new Response(
-            format === 'csv' ? toCsv(result.data) : toNdjson(result.data),
-            {
-              headers: {
-                ...headers,
-                'content-type':
-                  format === 'csv'
-                    ? 'text/csv; charset=utf-8'
-                    : 'application/x-ndjson; charset=utf-8',
-              },
+          return apiRowsResponse({
+            format,
+            rows: result.data,
+            jsonBody: {
+              endpoint: { id: endpoint.id, name: endpoint.name },
+              spreadsheetId: result.spreadsheetId,
+              gid: result.gid,
+              title: result.title,
+              sourceUrl: result.sourceUrl,
+              rowCount: result.rowCount,
+              columnCount: result.columnCount,
+              extractedAt: result.createdAt,
+              data: result.data,
             },
-          )
+            headers,
+          })
         } catch (error) {
           return apiError(error, corsOrRetry(error, rateLimit))
         }
