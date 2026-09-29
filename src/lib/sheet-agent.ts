@@ -1,6 +1,7 @@
 import { formatCount } from './format'
 import type {
   SheetAgentAggregateOperation,
+  SheetAgentChartData,
   SheetAgentPlan,
   SheetRow,
 } from './types'
@@ -9,7 +10,13 @@ export type SheetAgentOutput =
   | { kind: 'summary'; message: string }
   | { kind: 'matches'; message: string; rows: SheetRow[] }
   | { kind: 'aggregate'; message: string }
-  | { kind: 'grouped'; message: string; columns: string[]; rows: SheetRow[] }
+  | {
+      kind: 'grouped'
+      message: string
+      columns: string[]
+      rows: SheetRow[]
+      chart: SheetAgentChartData
+    }
   | { kind: 'download'; message: string; rows: SheetRow[] }
   | { kind: 'clarify'; message: string }
 
@@ -191,6 +198,7 @@ function executeGroupedAggregate(
       message: `Sent and received totals for ${formatCount(totals.size)} members, grouped by “${plan.groupColumn}”.`,
       columns: headers,
       rows: toTotalsRows(totals, headers),
+      chart: toTotalsChart(totals, headers),
     }
   }
 
@@ -242,6 +250,7 @@ function executeGroupedAggregate(
       message: `Sent and received totals for ${formatCount(totals.size)} members, grouped by “${plan.groupColumn}”.${skipped}`,
       columns: headers,
       rows: toTotalsRows(totals, headers),
+      chart: toTotalsChart(totals, headers),
     }
   }
 
@@ -282,6 +291,7 @@ function executeGroupedAggregate(
       message: `Sent and received totals for ${formatCount(totals.size)} members, using “${plan.senderColumn}” and “${plan.receiverColumn}”.`,
       columns: headers,
       rows: toTotalsRows(totals, headers),
+      chart: toTotalsChart(totals, headers),
     }
   }
 
@@ -318,6 +328,7 @@ function executeGroupedAggregate(
         [plan.groupColumn]: group,
         [totalHeading]: formatNumber(amount),
       })),
+    chart: toSingleSeriesChart(totals, totalHeading),
   }
 }
 
@@ -367,6 +378,53 @@ function toTotalsRows(
       [sentColumn]: formatNumber(total.sent),
       [receivedColumn]: formatNumber(total.received),
     }))
+}
+
+function toTotalsChart(
+  totals: Map<string, MemberTotals>,
+  headers: string[],
+): SheetAgentChartData {
+  const [, sentLabel, receivedLabel] = headers
+  if (!sentLabel || !receivedLabel) {
+    return { categories: [], series: [] }
+  }
+
+  const top = [...totals.entries()]
+    .sort(([leftName, left], [rightName, right]) => {
+      const difference =
+        Math.abs(right.sent) +
+        Math.abs(right.received) -
+        Math.abs(left.sent) -
+        Math.abs(left.received)
+      return difference || leftName.localeCompare(rightName)
+    })
+    .slice(0, 10)
+
+  return {
+    categories: top.map(([member]) => member),
+    series: [
+      { name: sentLabel, values: top.map(([, total]) => total.sent) },
+      { name: receivedLabel, values: top.map(([, total]) => total.received) },
+    ],
+  }
+}
+
+function toSingleSeriesChart(
+  totals: Map<string, number>,
+  seriesName: string,
+): SheetAgentChartData {
+  const top = [...totals.entries()]
+    .sort(([leftName, left], [rightName, right]) => {
+      return (
+        Math.abs(right) - Math.abs(left) || leftName.localeCompare(rightName)
+      )
+    })
+    .slice(0, 10)
+
+  return {
+    categories: top.map(([group]) => group),
+    series: [{ name: seriesName, values: top.map(([, value]) => value) }],
+  }
 }
 
 function formatNumber(value: number): string {

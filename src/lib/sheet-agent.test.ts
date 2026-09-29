@@ -107,6 +107,10 @@ describe('executeSheetAgentPlan', () => {
       message: string
       columns: string[]
       rows: SheetRow[]
+      chart: {
+        categories: string[]
+        series: { name: string; values: number[] }[]
+      }
     }
 
     expect(result.kind).toBe('grouped')
@@ -115,6 +119,13 @@ describe('executeSheetAgentPlan', () => {
       { Member: 'Alex', 'Total sent': '17', 'Total received': '8' },
       { Member: 'Bea', 'Total sent': '20', 'Total received': '15' },
     ])
+    expect(result.chart).toEqual({
+      categories: ['Bea', 'Alex'],
+      series: [
+        { name: 'Total sent', values: [20, 17] },
+        { name: 'Total received', values: [15, 8] },
+      ],
+    })
   })
 
   it('uses a direction column to split grouped amount totals', () => {
@@ -143,6 +154,7 @@ describe('executeSheetAgentPlan', () => {
       { Member: 'Ada', 'Total sent': '12', 'Total received': '0' },
       { Member: 'Bea', 'Total sent': '0', 'Total received': '11' },
     ])
+    expect(result.chart.categories).toEqual(['Ada', 'Bea'])
   })
 
   it('counts sent by sender and received by recipient', () => {
@@ -169,6 +181,7 @@ describe('executeSheetAgentPlan', () => {
       { Member: 'Alex', 'Total sent': '8', 'Total received': '3' },
       { Member: 'Bea', 'Total sent': '3', 'Total received': '8' },
     ])
+    expect(result.chart.categories).toEqual(['Alex', 'Bea'])
   })
 
   it('totals a single measure by group', () => {
@@ -196,5 +209,9 @@ describe('executeSheetAgentPlan', () => {
       { Category: 'Books', 'Total Amount': '15' },
       { Category: 'Games', 'Total Amount': '8' },
     ])
+    expect(result.chart).toEqual({
+      categories: ['Books', 'Games'],
+      series: [{ name: 'Total Amount', values: [15, 8] }],
+    })
   })
 })

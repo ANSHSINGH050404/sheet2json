@@ -2,6 +2,7 @@ import { useMutation } from '@tanstack/react-query'
 import { useEffect, useId, useState } from 'react'
 
 import { DataTable } from '#components/data-table'
+import { GroupedBarChart } from '#components/grouped-bar-chart'
 import { formatCount, unwrap } from '#lib/format'
 import { trackAnalytics } from '#lib/analytics'
 import { rowsToCsv } from '#lib/csv'
@@ -222,6 +223,7 @@ function AssistantOutput({
       ) : null}
       {output.kind === 'grouped' && output.rows.length > 0 ? (
         <>
+          <GroupedBarChart data={output.chart} />
           <DataTable
             rows={output.rows}
             columns={output.columns}

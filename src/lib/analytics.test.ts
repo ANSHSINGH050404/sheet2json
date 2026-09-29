@@ -1,6 +1,10 @@
 import { describe, expect, it } from 'bun:test'
 
-import { analyticsRouteForPath, sanitizeAnalyticsUrl } from './analytics'
+import {
+  analyticsRouteForPath,
+  redactPostHogUrlProperties,
+  sanitizeAnalyticsUrl,
+} from './analytics'
 
 describe('analyticsRouteForPath', () => {
   it('uses a stable route name instead of a history record id', () => {
@@ -37,5 +41,18 @@ describe('sanitizeAnalyticsUrl', () => {
 
   it('rejects non-URL analytics properties', () => {
     expect(sanitizeAnalyticsUrl('not a URL')).toBeNull()
+  })
+})
+
+describe('redactPostHogUrlProperties', () => {
+  it('removes full URLs and referrers while preserving safe event properties', () => {
+    expect(
+      redactPostHogUrlProperties({
+        $current_url: 'https://sheet2json.app/view?url=private-sheet',
+        $referrer: 'https://example.com/?email=person@example.com',
+        route: 'live_table',
+        row_count: 12,
+      }),
+    ).toEqual({ route: 'live_table', row_count: 12 })
   })
 })

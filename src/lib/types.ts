@@ -79,6 +79,12 @@ export type SheetAgentGroupPlan =
       amountColumn: string
     }
 
+/** Compact chart data derived from grouped rows by application code. */
+export interface SheetAgentChartData {
+  categories: string[]
+  series: Array<{ name: string; values: number[] }>
+}
+
 /** A bounded action plan returned by the server-side TypeSafe router. */
 export type SheetAgentPlan =
   | { action: 'summarize' }

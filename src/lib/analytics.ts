@@ -71,18 +71,30 @@ export function sanitizeAnalyticsUrl(rawUrl: string): string | null {
   }
 }
 
+/** Removes automatic location properties before PostHog sends an event. */
+export function redactPostHogUrlProperties(
+  properties: Record<string, unknown>,
+): Record<string, unknown> {
+  const safeProperties = { ...properties }
+  for (const property of URL_PROPERTIES) delete safeProperties[property]
+  return safeProperties
+}
+
 /** Sends allow-listed product events only; prompts, rows, and sheet URLs are excluded. */
 export function trackAnalytics(event: AnalyticsEvent): void {
   if (typeof window === 'undefined') return
 
-  void getPostHogClient().then((client) => {
-    if (!client) return
-    const { event: eventName, ...properties } = event
-    client.capture(eventName, properties)
-  })
+  void getPostHogClient()
+    .then((client) => {
+      if (!client) return
+      const { event: eventName, ...properties } = event
+      client.capture(eventName, properties)
+    })
+    .catch(() => undefined)
 }
 
 function getPostHogClient(): Promise<PostHog | null> {
+  if (import.meta.env.SSR) return Promise.resolve(null)
   if (typeof window === 'undefined') return Promise.resolve(null)
 
   const projectKey = import.meta.env.VITE_POSTHOG_KEY?.trim()
@@ -109,9 +121,7 @@ function getPostHogClient(): Promise<PostHog | null> {
         property_denylist: URL_PROPERTIES,
         before_send: (event) => {
           if (!event?.properties) return event
-          for (const property of URL_PROPERTIES) {
-            delete event.properties[property]
-          }
+          event.properties = redactPostHogUrlProperties(event.properties)
           return event
         },
       })
