@@ -126,6 +126,17 @@ export function BentoGrid() {
 
       <BentoCard
         className="lg:col-span-4"
+        icon={LayersIcon}
+        title="Stable URLs for saved recipes"
+        body="Preview your columns, filters and sort order, then save the recipe as a reusable endpoint protected by your API key."
+      >
+        <span className="inline-block rounded-md border border-line bg-surface-muted px-3 py-2 font-mono text-xs text-ink-strong">
+          GET /api/v1/endpoints/...
+        </span>
+      </BentoCard>
+
+      <BentoCard
+        className="lg:col-span-4"
         icon={KeyIcon}
         title="Keys you can revoke"
         body="Keys are shown once, at creation, and kept only as a SHA-256 digest. Revoke one and it stops working on the next request."

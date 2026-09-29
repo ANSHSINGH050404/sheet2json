@@ -1,6 +1,8 @@
 import { toAppError } from '#lib/errors'
 import { rowsToCsv } from '#lib/csv'
 import type { AppError } from '#lib/errors'
+import type { SheetRow } from '#lib/types'
+import type { ApiOutputFormat } from '#server/api/output-format'
 
 /**
  * The shared response helpers for the public REST API.
@@ -67,6 +69,14 @@ export function apiJson(
   })
 }
 
+/** Cache policy shared by API routes that return owner-specific sheet data. */
+export function apiCacheHeaders(ttlSeconds: number): Record<string, string> {
+  return {
+    'cache-control':
+      ttlSeconds > 0 ? `private, max-age=${ttlSeconds}` : 'no-store',
+  }
+}
+
 /**
  * A JSON error response.
  *
@@ -128,4 +138,26 @@ export const toCsv = rowsToCsv
  */
 export function toNdjson(rows: Record<string, string>[]): string {
   return rows.map((row) => JSON.stringify(row)).join('\n')
+}
+
+/** Serializes row data consistently for JSON, CSV, and NDJSON API responses. */
+export function apiRowsResponse(input: {
+  format: ApiOutputFormat
+  rows: SheetRow[]
+  jsonBody: unknown
+  headers: Record<string, string>
+}): Response {
+  if (input.format === 'json') {
+    return apiJson(input.jsonBody, { headers: input.headers })
+  }
+
+  const isCsv = input.format === 'csv'
+  return new Response(isCsv ? toCsv(input.rows) : toNdjson(input.rows), {
+    headers: {
+      ...input.headers,
+      'content-type': isCsv
+        ? 'text/csv; charset=utf-8'
+        : 'application/x-ndjson; charset=utf-8',
+    },
+  })
 }

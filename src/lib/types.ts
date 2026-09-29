@@ -5,6 +5,8 @@
  * so it can safely be bundled into the browser.
  */
 
+import type { RowQuery } from './query'
+
 /** A validated pointer to a Google Sheet. */
 export interface GoogleSheetReference {
   spreadsheetId: string
@@ -151,6 +153,15 @@ export interface ApiKeySummary {
 /** A newly created key. `key` is present exactly once, at creation. */
 export interface CreatedApiKey extends ApiKeySummary {
   key: string
+}
+
+/** A user's named live endpoint configuration. Never includes sheet row data. */
+export interface SavedEndpointSummary {
+  id: string
+  name: string
+  sourceUrl: string
+  recipe: RowQuery
+  createdAt: string
 }
 
 /** The signed-in user, as the shell and settings page need them. */

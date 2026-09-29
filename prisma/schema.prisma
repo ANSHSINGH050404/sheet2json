@@ -23,10 +23,11 @@ model User {
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
 
-  googleAccount GoogleAccount?
-  sessions      Session[]
-  apiKeys       ApiKey[]
-  extractions   Extraction[]
+  googleAccount  GoogleAccount?
+  sessions       Session[]
+  apiKeys        ApiKey[]
+  extractions    Extraction[]
+  savedEndpoints SavedEndpoint[]
 
   @@map("users")
 }
@@ -68,9 +69,9 @@ model GoogleAccount {
   /// Epoch milliseconds at which `accessToken` stops being accepted.
   accessTokenExpiresAt  BigInt?
 
-  scope      String?
-  createdAt  DateTime  @default(now())
-  updatedAt  DateTime  @updatedAt
+  scope     String?
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
 
   user User @relation(fields: [userId], references: [id], onDelete: Cascade)
 
@@ -85,9 +86,9 @@ model Session {
   id     String @id @default(cuid())
   userId String
 
-  tokenHash String   @unique
-  expiresAt DateTime
-  createdAt DateTime @default(now())
+  tokenHash  String   @unique
+  expiresAt  DateTime
+  createdAt  DateTime @default(now())
   lastSeenAt DateTime @default(now())
 
   user User @relation(fields: [userId], references: [id], onDelete: Cascade)
@@ -107,8 +108,8 @@ model ApiKey {
   id     String @id @default(cuid())
   userId String
 
-  name  String
-  prefix String
+  name    String
+  prefix  String
   /// SHA-256 of the full key. The key itself is shown exactly once, at creation.
   keyHash String @unique
 
@@ -154,6 +155,25 @@ model Extraction {
   @@index([spreadsheetId])
   @@index([userId, createdAt])
   @@map("extractions")
+}
+
+/// A named, live API recipe for one Google Sheets tab and optional row query.
+///
+/// The rows are fetched from Google when the endpoint is called; this record
+/// stores only the source and query configuration. Every read is scoped to the
+/// owner, because private sheets must never be exposed by a public endpoint id.
+model SavedEndpoint {
+  id        String   @id @default(cuid())
+  userId    String
+  name      String
+  sourceUrl String
+  query     String   @default("")
+  createdAt DateTime @default(now())
+
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@index([userId, createdAt])
+  @@map("saved_endpoints")
 }
 
 /// A fixed-window request counter for rate limiting.

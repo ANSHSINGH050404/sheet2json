@@ -1,13 +1,10 @@
 import { createFileRoute } from '@tanstack/react-router'
 
 import { AppError } from '#lib/errors'
-import {
-  authenticate,
-  quotaHeaders,
-  retryAfterHeader,
-} from '#server/api/authenticate'
+import { authenticate, quotaHeaders } from '#server/api/authenticate'
 import { CORS_HEADERS, corsPreflight, methodNotAllowed } from '#server/api/cors'
 import { apiError, apiJson } from '#server/api/response'
+import { corsOrRetry, requireApiUserId } from '#server/api/route-helpers'
 import { deleteExtraction, getExtraction } from '#server/services/extraction'
 
 /**
@@ -25,14 +22,14 @@ export const Route = createFileRoute('/api/v1/extractions/$extractionId')({
       OPTIONS: () => corsPreflight(),
 
       GET: async ({ request, params }) => {
-        let limit = null as Awaited<
+        let rateLimit = null as Awaited<
           ReturnType<typeof authenticate>
         >['rateLimit']
 
         try {
           const auth = await authenticate(request.headers.get('authorization'))
-          limit = auth.rateLimit
-          const userId = requireUser(auth.caller.userId)
+          rateLimit = auth.rateLimit
+          const userId = requireApiUserId(auth.caller.userId)
 
           const extraction = await getExtraction(params.extractionId, userId)
 
@@ -43,19 +40,19 @@ export const Route = createFileRoute('/api/v1/extractions/$extractionId')({
             },
           )
         } catch (error) {
-          return apiError(error, corsOrRetry(error, limit))
+          return apiError(error, corsOrRetry(error, rateLimit))
         }
       },
 
       DELETE: async ({ request, params }) => {
-        let limit = null as Awaited<
+        let rateLimit = null as Awaited<
           ReturnType<typeof authenticate>
         >['rateLimit']
 
         try {
           const auth = await authenticate(request.headers.get('authorization'))
-          limit = auth.rateLimit
-          const userId = requireUser(auth.caller.userId)
+          rateLimit = auth.rateLimit
+          const userId = requireApiUserId(auth.caller.userId)
 
           const removed = await deleteExtraction(params.extractionId, userId)
           if (!removed) {
@@ -70,7 +67,7 @@ export const Route = createFileRoute('/api/v1/extractions/$extractionId')({
             headers: { ...CORS_HEADERS, ...quotaHeaders(auth.rateLimit) },
           })
         } catch (error) {
-          return apiError(error, corsOrRetry(error, limit))
+          return apiError(error, corsOrRetry(error, rateLimit))
         }
       },
 
@@ -78,22 +75,3 @@ export const Route = createFileRoute('/api/v1/extractions/$extractionId')({
     },
   },
 })
-
-function requireUser(userId: string | null): string {
-  if (!userId) {
-    throw new AppError(
-      'UNAUTHENTICATED',
-      'This endpoint requires an API key. Create one in Settings.',
-    )
-  }
-  return userId
-}
-
-function corsOrRetry(
-  error: unknown,
-  limit: Awaited<ReturnType<typeof authenticate>>['rateLimit'],
-): Record<string, string> {
-  return error instanceof AppError && error.code === 'RATE_LIMITED'
-    ? { ...CORS_HEADERS, ...retryAfterHeader(limit) }
-    : CORS_HEADERS
-}

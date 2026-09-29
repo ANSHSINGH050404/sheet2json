@@ -1,6 +1,7 @@
 import { useState } from 'react'
 
 import { trackAnalytics } from '#lib/analytics'
+import { CLIPBOARD_COPY_ERROR, copyTextToClipboard } from '#lib/clipboard'
 import { buildSheetEmbedCode, buildSharedSheetUrl } from '#lib/share'
 
 export interface ShareActionsProps {
@@ -16,13 +17,14 @@ export function ShareActions({ sourceUrl }: ShareActionsProps) {
     successMessage: string,
     kind: 'link' | 'embed',
   ) {
-    try {
-      await navigator.clipboard.writeText(value)
-      setMessage(successMessage)
-      trackAnalytics({ event: 'share_asset_copied', kind })
-    } catch {
-      setMessage('Could not copy. Check your browser clipboard permissions.')
+    const copied = await copyTextToClipboard(value)
+    if (!copied) {
+      setMessage(CLIPBOARD_COPY_ERROR)
+      return
     }
+
+    setMessage(successMessage)
+    trackAnalytics({ event: 'share_asset_copied', kind })
   }
 
   return (

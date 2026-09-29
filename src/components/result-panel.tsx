@@ -3,6 +3,7 @@ import type { KeyboardEvent } from 'react'
 
 import { DataTable } from '#components/data-table'
 import { JsonViewer } from '#components/json-viewer'
+import { SaveEndpoint } from '#components/save-endpoint'
 import { ShareActions } from '#components/share-actions'
 import { SheetAssistant } from '#components/sheet-assistant'
 import { describeExtraction, formatCount } from '#lib/format'
@@ -92,6 +93,11 @@ export function ResultPanel({ extraction, action }: ResultPanelProps) {
         </dl>
 
         <ShareActions sourceUrl={extraction.sourceUrl} />
+        <SaveEndpoint
+          sourceUrl={extraction.sourceUrl}
+          rows={extraction.data}
+          suggestedName={extraction.title ?? extraction.spreadsheetId}
+        />
       </div>
 
       <div className="px-4 py-4 sm:px-5">
