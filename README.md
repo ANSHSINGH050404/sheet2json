@@ -111,13 +111,13 @@ those shapes. The full reference is at **`/docs`**, or as JSON from
 
 Endpoints:
 
-| Method | Path | Auth | Purpose |
-| --- | --- | --- | --- |
-| `GET` | `/api/v1/extract?url=…` | optional | Extract a sheet as JSON, CSV or NDJSON |
-| `GET` | `/api/v1/me` | key | Verify a key and read the remaining quota |
-| `GET` | `/api/v1/extractions` | key | List the extractions saved from the web UI |
-| `GET` | `/api/v1/extractions/{id}` | key | Read one saved extraction |
-| `DELETE` | `/api/v1/extractions/{id}` | key | Delete one saved extraction |
+| Method   | Path                       | Auth     | Purpose                                    |
+| -------- | -------------------------- | -------- | ------------------------------------------ |
+| `GET`    | `/api/v1/extract?url=…`    | optional | Extract a sheet as JSON, CSV or NDJSON     |
+| `GET`    | `/api/v1/me`               | key      | Verify a key and read the remaining quota  |
+| `GET`    | `/api/v1/extractions`      | key      | List the extractions saved from the web UI |
+| `GET`    | `/api/v1/extractions/{id}` | key      | Read one saved extraction                  |
+| `DELETE` | `/api/v1/extractions/{id}` | key      | Delete one saved extraction                |
 
 Rate limits are per hour, per key and per account, with a smaller per-IP budget
 for unauthenticated callers. Every response carries `RateLimit-Limit`,
@@ -143,7 +143,7 @@ matter:
 
 - **Secrets are stored as digests.** Session cookies, API keys and OAuth `state`
   values are only ever stored as SHA-256 hashes, so a database leak yields
-  nothing replayable. OAuth *tokens* are different — they must be usable again, so
+  nothing replayable. OAuth _tokens_ are different — they must be usable again, so
   they are encrypted with AES-256-GCM under a key held in the environment.
 - **The SSRF boundary is the URL validator.** Only spreadsheet ids matching a
   strict allow-list and a numeric `gid` ever reach the network layer, and the
@@ -196,3 +196,34 @@ this app uses is unprefixed, so it stays server-only.
 
 If you add Google sign-in, add
 `https://YOUR_DOMAIN/auth/google/callback` to the OAuth client's redirect URIs.
+
+### CI/CD
+
+`.github/workflows/ci.yml` has two jobs.
+
+`verify` runs on every push and pull request: install, `prisma generate`,
+`typecheck`, `lint`, `check` (prettier), `bun test` and `bun run build`. It needs
+no database — the integration tests skip themselves when `DATABASE_URL` is
+unset, so CI cannot write to production. The generated Prisma client is
+committed and ignored by prettier, so a client version bump cannot fail the
+formatting gate.
+
+`deploy` needs `verify` to pass and runs only on a push to `master`: it applies
+`prisma migrate deploy` to production, then `vercel deploy --prod`. Add these
+repository secrets under **Settings > Secrets and variables > Actions**:
+
+| Secret              | Value                                                      |
+| ------------------- | ---------------------------------------------------------- |
+| `DATABASE_URL`      | the production PostgreSQL connection string                |
+| `VERCEL_TOKEN`      | a Vercel access token (Vercel → Account Settings → Tokens) |
+| `VERCEL_ORG_ID`     | from `.vercel/project.json` after linking the project      |
+| `VERCEL_PROJECT_ID` | from `.vercel/project.json` after linking the project      |
+
+Migrations run before the deploy, not after: new code must not reach production
+before the schema it expects. Keep every migration backwards compatible until
+the deploy is green, because a failed deploy leaves the previous release running
+against a newer schema.
+
+If you would rather not run migrations from CI, delete the `deploy` job's
+migration step and turn off Vercel's own Git integration to avoid deploying the
+same commit twice.
