@@ -8,6 +8,8 @@ import {
   savedEndpointsQueryKey,
 } from '#hooks/use-saved-endpoints'
 import { useSessionUser } from '#hooks/use-session'
+import { CLIPBOARD_COPY_ERROR, copyTextToClipboard } from '#lib/clipboard'
+import { buildSavedEndpointExamples } from '#lib/endpoint-examples'
 import { formatAbsolute, unwrap } from '#lib/format'
 import type { SavedEndpointSummary } from '#lib/types'
 import { deleteSavedEndpointFn } from '#server/api/endpoints'
@@ -36,14 +38,8 @@ function SavedEndpointsPage() {
   })
 
   async function copy(value: string) {
-    try {
-      await navigator.clipboard.writeText(value)
-      setCopyMessage('Copied to clipboard.')
-    } catch {
-      setCopyMessage(
-        'Could not copy. Check your browser clipboard permissions.',
-      )
-    }
+    const copied = await copyTextToClipboard(value)
+    setCopyMessage(copied ? 'Copied to clipboard.' : CLIPBOARD_COPY_ERROR)
   }
 
   if (session.isPending) {
@@ -150,15 +146,7 @@ function EndpointCard({
   isDeleting: boolean
   onDelete: () => void
 }) {
-  const path = `/api/v1/endpoints/${endpoint.id}`
-  const url = `${origin}${path}`
-  const curl = `curl "${url}" -H "Authorization: Bearer YOUR_API_KEY"`
-  const javascript = [
-    `const response = await fetch("${url}", {`,
-    '  headers: { Authorization: "Bearer " + process.env.S2J_KEY },',
-    '});',
-    'const data = await response.json();',
-  ].join('\n')
+  const examples = buildSavedEndpointExamples(endpoint.id, origin)
   const params = new URLSearchParams(endpoint.query)
   const description = [
     params.get('select') ? `columns: ${params.get('select')}` : null,
@@ -204,26 +192,26 @@ function EndpointCard({
       </p>
 
       <code className="mt-4 block overflow-x-auto rounded-lg border border-line bg-surface-muted px-3 py-2.5 font-mono text-xs text-ink-strong">
-        {url || path}
+        {examples.url || examples.path}
       </code>
       <div className="mt-3 flex flex-wrap gap-2">
         <button
           type="button"
-          onClick={() => void copy(url)}
+          onClick={() => void copy(examples.url)}
           className="rounded-md border border-line-strong bg-surface px-3 py-1.5 text-xs font-semibold text-ink-strong transition-colors hover:bg-surface-muted focus:outline-none focus:ring-2 focus:ring-ink-subtle focus:ring-offset-2"
         >
           Copy URL
         </button>
         <button
           type="button"
-          onClick={() => void copy(curl)}
+          onClick={() => void copy(examples.curl)}
           className="rounded-md border border-line-strong bg-surface px-3 py-1.5 text-xs font-semibold text-ink-strong transition-colors hover:bg-surface-muted focus:outline-none focus:ring-2 focus:ring-ink-subtle focus:ring-offset-2"
         >
           Copy cURL example
         </button>
         <button
           type="button"
-          onClick={() => void copy(javascript)}
+          onClick={() => void copy(examples.javascript)}
           className="rounded-md border border-line-strong bg-surface px-3 py-1.5 text-xs font-semibold text-ink-strong transition-colors hover:bg-surface-muted focus:outline-none focus:ring-2 focus:ring-ink-subtle focus:ring-offset-2"
         >
           Copy server-side JavaScript

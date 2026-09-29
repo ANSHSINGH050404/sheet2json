@@ -4,7 +4,9 @@ import { useEffect, useId, useMemo, useState } from 'react'
 import { DataTable } from '#components/data-table'
 import { useSessionUser } from '#hooks/use-session'
 import { savedEndpointsQueryKey } from '#hooks/use-saved-endpoints'
+import { CLIPBOARD_COPY_ERROR, copyTextToClipboard } from '#lib/clipboard'
 import { describeSelectedSheetTab, prepareEndpointQuery } from '#lib/endpoints'
+import { buildSavedEndpointExamples } from '#lib/endpoint-examples'
 import type { EndpointQueryDraft } from '#lib/endpoints'
 import { formatCount, unwrap } from '#lib/format'
 import type { SheetRow } from '#lib/types'
@@ -81,32 +83,15 @@ export function SaveEndpoint({
   })
 
   async function copy(value: string, message: string) {
-    try {
-      await navigator.clipboard.writeText(value)
-      setCopiedMessage(message)
-    } catch {
-      setCopiedMessage(
-        'Could not copy. Check your browser clipboard permissions.',
-      )
-    }
+    const copied = await copyTextToClipboard(value)
+    setCopiedMessage(copied ? message : CLIPBOARD_COPY_ERROR)
   }
 
   const savedEndpoint = create.data
-  const endpointPath = savedEndpoint
-    ? `/api/v1/endpoints/${savedEndpoint.id}`
-    : ''
-  const endpointUrl = endpointPath ? `${origin}${endpointPath}` : ''
-  const curlExample = endpointUrl
-    ? `curl "${endpointUrl}" -H "Authorization: Bearer YOUR_API_KEY"`
-    : ''
-  const javascriptExample = endpointUrl
-    ? [
-        `const response = await fetch("${endpointUrl}", {`,
-        '  headers: { Authorization: "Bearer " + process.env.S2J_KEY },',
-        '});',
-        'const data = await response.json();',
-      ].join('\n')
-    : ''
+  const examples = savedEndpoint
+    ? buildSavedEndpointExamples(savedEndpoint.id, origin)
+    : null
+  const endpointUrl = examples?.url ?? ''
 
   return (
     <section className="mt-4 border-t border-line pt-4">
@@ -287,7 +272,7 @@ export function SaveEndpoint({
             requested; short-lived caching avoids repeated upstream reads.
           </p>
           <code className="block overflow-x-auto rounded bg-surface px-3 py-2 font-mono text-xs text-ink-strong">
-            {endpointUrl || endpointPath}
+            {endpointUrl || examples?.path}
           </code>
           <div className="flex flex-wrap gap-2">
             <button
@@ -299,7 +284,9 @@ export function SaveEndpoint({
             </button>
             <button
               type="button"
-              onClick={() => void copy(curlExample, 'cURL example copied.')}
+              onClick={() =>
+                void copy(examples?.curl ?? '', 'cURL example copied.')
+              }
               className="rounded-md border border-line-strong bg-surface px-3 py-1.5 text-xs font-semibold text-ink-strong transition-colors hover:bg-surface-muted focus:outline-none focus:ring-2 focus:ring-ink-subtle focus:ring-offset-2"
             >
               Copy cURL example
@@ -307,7 +294,10 @@ export function SaveEndpoint({
             <button
               type="button"
               onClick={() =>
-                void copy(javascriptExample, 'JavaScript example copied.')
+                void copy(
+                  examples?.javascript ?? '',
+                  'JavaScript example copied.',
+                )
               }
               className="rounded-md border border-line-strong bg-surface px-3 py-1.5 text-xs font-semibold text-ink-strong transition-colors hover:bg-surface-muted focus:outline-none focus:ring-2 focus:ring-ink-subtle focus:ring-offset-2"
             >
