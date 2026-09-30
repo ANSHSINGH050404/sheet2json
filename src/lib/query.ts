@@ -299,16 +299,45 @@ function matches(cell: string, condition: Condition): boolean {
 /**
  * Orders two cells.
  *
- * Numeric when both sides are finite numbers, so `?where=amount>100` means what
- * it looks like rather than comparing the strings "99" and "100" alphabetically.
+ * Numeric when both sides parse as numbers, so `?where=amount>100` means what it
+ * looks like rather than comparing the strings "99" and "100" alphabetically.
  * Everything else falls back to a locale-aware string compare.
+ *
+ * Cells are not guaranteed to hold bare numbers. A sheet column headed "Amount"
+ * routinely holds `$1,200.50` or `(45)` for negatives, and `Number()` is `NaN`
+ * for both - which silently downgraded the comparison to a string one, so
+ * `?where=Amount>500` skipped every currency-formatted row and
+ * `?sort=-Amount` ordered them by their leading symbol. Stripping the same
+ * decoration the aggregate path already strips keeps the two agreeing.
  */
 function compare(left: string, right: string): number {
-  const a = Number(left)
-  const b = Number(right)
-  if (Number.isFinite(a) && Number.isFinite(b))
-    return a === b ? 0 : a < b ? -1 : 1
+  const a = toComparableNumber(left)
+  const b = toComparableNumber(right)
+  if (a !== null && b !== null) return a === b ? 0 : a < b ? -1 : 1
   return left.localeCompare(right)
+}
+
+/**
+ * A cell's numeric value, or null when it is not a number.
+ *
+ * Accepts the spellings a spreadsheet actually produces: thousands separators,
+ * a leading currency symbol, a trailing percent, and accounting parentheses for
+ * negatives. Returns null rather than coercing, so a column of postal codes is
+ * compared as text instead of silently losing its leading zeros.
+ */
+function toComparableNumber(value: string): number | null {
+  const trimmed = value.trim()
+  if (trimmed === '') return null
+
+  const parenthesized = /^\((.*)\)$/.exec(trimmed)
+  const unwrapped = parenthesized?.[1] ?? trimmed
+  const normalized = unwrapped.replace(/[\s,$€£¥%]/g, '')
+  if (normalized === '' || !/^[+-]?\d+(?:\.\d+)?$/.test(normalized)) {
+    return null
+  }
+
+  const parsed = Number(parenthesized ? `-${normalized}` : normalized)
+  return Number.isFinite(parsed) ? parsed : null
 }
 
 /**

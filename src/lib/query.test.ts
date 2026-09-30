@@ -79,6 +79,57 @@ describe('where', () => {
     ])
   })
 
+  it('compares currency-formatted cells as numbers', () => {
+    // Number("$1,200.50") is NaN, so without stripping the decoration this
+    // silently fell back to a string compare and matched nothing.
+    const rows = [
+      { name: 'Ada', amount: '$1,200.50' },
+      { name: 'Grace', amount: '800' },
+      { name: 'Alan', amount: '$45.00' },
+    ]
+    const query = parseRowQuery(new URLSearchParams('where=amount>500'))
+
+    expect(applyRowQuery(rows, query).map((row) => row.name)).toEqual([
+      'Ada',
+      'Grace',
+    ])
+  })
+
+  it('reads accounting parentheses as a negative number', () => {
+    const rows = [{ amount: '(45)' }, { amount: '10' }, { amount: '0' }]
+    const query = parseRowQuery(new URLSearchParams('where=amount<0'))
+
+    expect(applyRowQuery(rows, query).map((row) => row.amount)).toEqual([
+      '(45)',
+    ])
+  })
+
+  it('sorts currency and bare numbers into one numeric order', () => {
+    // Ordered by leading "$" as text, "$1,200.50" sorts below "800", because
+    // "$" is a lower code point than a digit.
+    const rows = [
+      { name: 'Grace', amount: '800' },
+      { name: 'Ada', amount: '$1,200.50' },
+      { name: 'Alan', amount: '$45.00' },
+    ]
+    const query = parseRowQuery(new URLSearchParams('sort=-amount'))
+
+    expect(applyRowQuery(rows, query).map((row) => row.name)).toEqual([
+      'Ada',
+      'Grace',
+      'Alan',
+    ])
+  })
+
+  it('does not treat an identifier as a number', () => {
+    // A postal code column must stay text, or "01234" collapses to 1234 and the
+    // leading zero is lost from every comparison.
+    const rows = [{ code: '01234' }, { code: '02115' }]
+    const query = parseRowQuery(new URLSearchParams('where=code<02100'))
+
+    expect(applyRowQuery(rows, query).map((row) => row.code)).toEqual(['01234'])
+  })
+
   it('treats every condition as AND', () => {
     expect(
       run('where=role=Developer&where=amount>50').map((row) => row.name),

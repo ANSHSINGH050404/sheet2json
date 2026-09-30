@@ -1,6 +1,11 @@
 import { AppError } from '#lib/errors'
-import { SHEET_AGENT_MAX_COLUMNS } from '#lib/constants'
-import type { SheetAgentAggregateOperation, SheetAgentPlan } from '#lib/types'
+import { QUERY_MAX_LIMIT, SHEET_AGENT_MAX_COLUMNS } from '#lib/constants'
+import type { ComparisonOperator } from '#lib/query'
+import type {
+  SheetAgentAggregateOperation,
+  SheetAgentFilterPlan,
+  SheetAgentPlan,
+} from '#lib/types'
 
 const TYPESAFE_ENDPOINT = 'https://api.typesafe.ai/v1/systemone'
 const TYPESAFE_MODEL = 'jev-latest'
@@ -10,8 +15,10 @@ const REQUEST_TIMEOUT_MS = 15_000
 const ACTION_CRITERIA = {
   summarize:
     'Give a concise overview of the sheet, its row and column counts, or data completeness.',
+  filter:
+    'Keep only the rows that pass a comparison against a threshold the user names, such as a number, a status, or a limit such as the top five.',
   search:
-    'Find, show, list, or filter rows using values the user names in the request.',
+    'Find, show, list, or look up rows by describing their content, without a comparison against a threshold.',
   aggregate:
     'Calculate a sum, average, minimum, maximum, or count for one named column.',
   group_aggregate:
@@ -109,6 +116,97 @@ const GROUP_COLUMN_ROLES: Record<GroupLayout, ColumnRole[]> = {
       missingMessage: 'Which numeric column should I total?',
     },
   ],
+}
+
+/**
+ * Comparison operators, as the assistant's filter action may express them.
+ *
+ * These are the same strings `?where=` accepts, and they map one-to-one onto
+ * `ComparisonOperator`. The set is closed on purpose: the request arrives from an
+ * anonymous caller, so the planner may only choose from operators the executor
+ * already knows how to apply.
+ */
+const FILTER_OPERATOR_CRITERIA = {
+  equals:
+    'The value is exactly this, such as "status is ready" or "role is admin".',
+  not_equals: 'The value is anything but this, such as "not cancelled".',
+  contains:
+    'The value appears anywhere within the cell, such as names containing a partial word.',
+  greater_than:
+    'The value is a larger number than this, such as "over 500" or "more than 3 days".',
+  greater_or_equal:
+    'The value is at least this number, such as "500 or more" or "at least 80".',
+  less_than:
+    'The value is a smaller number than this, such as "under 100" or "less than 5".',
+  less_or_equal: 'The value is at most this number, such as "100 or fewer".',
+} as const
+
+type FilterOperator = keyof typeof FILTER_OPERATOR_CRITERIA
+
+const FILTER_OPERATORS: Record<FilterOperator, ComparisonOperator> = {
+  equals: '=',
+  not_equals: '!=',
+  contains: '~',
+  greater_than: '>',
+  greater_or_equal: '>=',
+  less_than: '<',
+  less_or_equal: '<=',
+}
+
+/**
+ * Words that introduce a threshold, mapped to the operator they imply.
+ *
+ * The value itself is extracted separately, so this only has to answer "which
+ * comparison did they ask for". Anything not listed here falls back to the
+ * operator TypeSafe chose, which is why the list is a hint rather than a gate.
+ */
+const OPERATOR_HINTS: ReadonlyArray<[RegExp, ComparisonOperator]> = [
+  [/\b(?:not|isn't|is\s+not|except|excluding|other\s+than)\b/i, '!='],
+  [
+    /\b(?:at\s+least|or\s+(?:more|greater)|minimum\s+of|no\s+less\s+than|>=)\b/i,
+    '>=',
+  ],
+  [
+    /\b(?:at\s+most|or\s+(?:less|fewer)|maximum\s+of|no\s+more\s+than|<=)\b/i,
+    '<=',
+  ],
+  [
+    /\b(?:over|above|more\s+than|greater\s+than|exceeds?|higher\s+than|>)\b/i,
+    '>',
+  ],
+  [/\b(?:under|below|less\s+than|fewer\s+than|lower\s+than|<)\b/i, '<'],
+]
+
+/**
+ * Spans that could be a filter threshold.
+ *
+ * Tuned to over-find, then handed to TypeSafe as the *options* of a Choice
+ * question, so the model selects one of these verbatim rather than generating a
+ * number. A model asked to "read off the value" will happily produce a plausible
+ * 4999 where the user wrote 5000; a model asked to *pick* from a list of spans
+ * found in the request cannot, because the answer is a copy of one of them.
+ */
+const THRESHOLD_PATTERN =
+  /(?:[$€£¥]\s?\d[\d,]*(?:\.\d+)?|\d[\d,]*(?:\.\d+)?%?|\b\d+(?:\.\d+)?\s?(?:days?|hours?|weeks?|months?|years?|items?|rows?)\b)/gi
+
+const LIMIT_PATTERN =
+  /\b(?:top|first|last|limit|only|show\s+me)\s+(\d{1,5})\b/gi
+
+/**
+ * Ceiling on threshold candidates, so the Choice question stays well inside the
+ * 255-option limit even on a request dense with numbers.
+ */
+const MAX_THRESHOLD_CANDIDATES = 24
+
+/**
+ * The option id for a candidate span.
+ *
+ * A prefix, rather than the bare span, because an option key has to be a
+ * non-empty identifier and a span may be a bare digit. The prefix is stripped
+ * back off the answer to recover the text the user wrote.
+ */
+function thresholdId(candidate: string): string {
+  return `value_${candidate}`
 }
 
 const OPERATION_CRITERIA: Record<
@@ -234,6 +332,10 @@ export async function planSheetAction(
   if (actionAnswer.choice === 'summarize') return { action: 'summarize' }
   if (actionAnswer.choice === 'export') return { action: 'export' }
 
+  if (actionAnswer.choice === 'filter') {
+    return planFilterAction(request, columns, apiKey, options.fetchImpl)
+  }
+
   if (actionAnswer.choice === 'group_aggregate') {
     const layoutAnswer = readChoiceAnswer(
       answers?.group_layout,
@@ -304,6 +406,328 @@ export async function planSheetAction(
     column,
     operation: operationAnswer.choice as SheetAgentAggregateOperation,
   }
+}
+
+/**
+ * Plans a row filter by asking TypeSafe to *select* spans found in the request.
+ *
+ * Three judgments, asked in one request because they are independent of each
+ * other: which column the comparison is about, which operator the words imply,
+ * and which of the threshold candidates the user actually wrote. All three can be
+ * answered from the request alone, so there is no reason to spend a second call.
+ *
+ * The thresholds are candidate spans extracted by regex in this module, and the
+ * returned value is copied verbatim from that list. The model cannot invent a
+ * number: if the user wrote 5000, 4999 is not reachable, because it was never an
+ * option. That is the whole reason this is a Choice over spans rather than a
+ * "read the threshold" instruction.
+ */
+async function planFilterAction(
+  request: string,
+  columns: string[],
+  apiKey: string,
+  fetchImpl: typeof fetch | undefined,
+): Promise<SheetAgentPlan> {
+  const columnIds = columns.map((_, index) => `column_${index}`)
+  const columnCriteria: Record<string, string> = {
+    none: 'No single column is required; the request applies to the whole sheet.',
+  }
+  for (const [index, column] of columns.entries()) {
+    columnCriteria[`column_${index}`] =
+      `The column with the exact heading: ${column}`
+  }
+
+  const thresholdCandidates = findThresholdCandidates(request)
+  const sortColumnIds = columns.map((_, index) => `sort_${index}`)
+  const sortCriteria: Record<string, string> = {
+    none: 'The request does not ask to order the rows.',
+  }
+  for (const [index, column] of columns.entries()) {
+    sortCriteria[`sort_${index}`] =
+      `The column to order by, with the exact heading: ${column}`
+  }
+
+  const thresholdCriteria: Record<string, string> = {
+    none: 'The request names no value to compare against.',
+  }
+  for (const candidate of thresholdCandidates) {
+    // The span is the option id as well as its description, which is what makes
+    // the answer copyable: `picked.choice` minus this prefix is the user's text.
+    thresholdCriteria[thresholdId(candidate)] =
+      `The comparison value written in the request: ${candidate}`
+  }
+
+  const payload = {
+    model: TYPESAFE_MODEL,
+    state: {
+      request: request.trim(),
+      columns: columns.map((name, index) => ({
+        id: columnIds[index],
+        name,
+      })),
+    },
+    questions: {
+      column: {
+        type: 'choice',
+        instructions:
+          'Which single column is the comparison about? Choose none when the request only asks for a limit, such as "the top 5 rows".',
+        criteria: columnCriteria,
+      },
+      operator: {
+        type: 'choice',
+        instructions:
+          'Which comparison does the wording of the request express?',
+        criteria: FILTER_OPERATOR_CRITERIA,
+      },
+      threshold: {
+        type: 'choice',
+        instructions:
+          'Which of these candidate values is the one the user wrote as the comparison threshold? Choose none if the request names no such value.',
+        criteria: thresholdCriteria,
+      },
+      sort_column: {
+        type: 'choice',
+        instructions:
+          'Which column should the result be ordered by, if the request asks for a ranking such as highest, lowest, newest or top?',
+        criteria: sortCriteria,
+      },
+    },
+  }
+
+  const response = await requestTypeSafe(payload, apiKey, fetchImpl)
+  const body = await readResponseBody(response)
+  const filterAnswers = readRecord(readRecord(body)?.answers)
+
+  // Read the sort answer before branching on the column. Every question was
+  // asked in the same request, so a request with no comparison column but a
+  // ranking - "the lowest Amount" - still has an answer waiting here. Returning
+  // early instead would drop it and turn a valid request into a prompt.
+  const sortAnswer = readChoiceAnswer(filterAnswers?.sort_column, [
+    'none',
+    ...sortColumnIds,
+  ])
+  const sortColumn =
+    sortAnswer.confidence >= CHOICE_CONFIDENCE_FLOOR &&
+    sortAnswer.choice !== 'none'
+      ? (columns[sortColumnIds.indexOf(sortAnswer.choice)] ?? null)
+      : null
+
+  const columnAnswer = readChoiceAnswer(filterAnswers?.column, [
+    'none',
+    ...columnIds,
+  ])
+  if (
+    columnAnswer.confidence < CHOICE_CONFIDENCE_FLOOR ||
+    columnAnswer.choice === 'none'
+  ) {
+    // "Top 5 rows" and "the lowest Amount" name an ordering but no comparison,
+    // which is a valid request rather than a confusing one, so it becomes a
+    // sort-and-limit filter instead of a clarification prompt.
+    if (sortColumn !== null || findLimitCandidate(request) !== null) {
+      return buildFilterPlan(request, columns, {}, sortColumn)
+    }
+    return {
+      action: 'clarify',
+      message:
+        'Which column should I compare? Name its heading, for example “where Status is Ready”.',
+    }
+  }
+
+  const column = columns[columnIds.indexOf(columnAnswer.choice)]
+  if (column === undefined) {
+    return {
+      action: 'clarify',
+      message: 'I could not match that column. Please use its exact heading.',
+    }
+  }
+
+  const picked = readChoiceAnswer(filterAnswers?.threshold, [
+    'none',
+    ...thresholdCandidates.map(thresholdId),
+  ])
+  const operator = resolveOperator(picked, filterAnswers?.operator, request)
+
+  // The operator and threshold are independent, so a missing one is filled from
+  // the request's own wording rather than by asking the model to reconcile them.
+  if (picked.choice === 'none' || picked.confidence < CHOICE_CONFIDENCE_FLOOR) {
+    return {
+      action: 'clarify',
+      message: `Which value should I compare “${column}” against? Include the value in your request, for example “where ${column} is over 500”.`,
+    }
+  }
+
+  return buildFilterPlan(
+    request,
+    columns,
+    {
+      column,
+      operator,
+      // The answer id is `value_<span>`; the span itself is what the user wrote,
+      // copied back out rather than reconstructed.
+      value: picked.choice.replace(/^value_/, ''),
+    },
+    sortColumn,
+  )
+}
+
+/**
+ * Whether a ranking request wants the largest or the smallest values.
+ *
+ * "Top", "highest" and "best" mean descending; "lowest", "smallest" and
+ * "worst" mean ascending. Decided here rather than asked, because the words are
+ * unambiguous and a misread direction silently returns the wrong rows - the
+ * failure a user is least likely to notice.
+ */
+function resolveSortDirection(request: string): 'asc' | 'desc' {
+  return /\b(?:lowest|smallest|least|fewest|worst|cheapest|oldest)\b/i.test(
+    request,
+  )
+    ? 'asc'
+    : 'desc'
+}
+
+/**
+ * Assembles a filter plan, deciding which of the three parts the user gave.
+ *
+ * Each is optional, because people ask for them separately: "amount over 500",
+ * "sort by amount", and "top 5". An empty plan is rejected here rather than
+ * returned, since a filter with no conditions, no sort and no limit would
+ * silently hand back the whole sheet.
+ */
+function buildFilterPlan(
+  request: string,
+  columns: string[],
+  selected: {
+    column?: string
+    operator?: ComparisonOperator
+    value?: string
+  },
+  sortColumn: string | null,
+): SheetAgentPlan {
+  const conditions =
+    selected.column !== undefined &&
+    selected.operator !== undefined &&
+    selected.value !== undefined
+      ? [
+          {
+            column: selected.column,
+            operator: selected.operator,
+            value: selected.value,
+          },
+        ]
+      : []
+
+  const sort =
+    sortColumn !== null && columns.includes(sortColumn)
+      ? [{ column: sortColumn, direction: resolveSortDirection(request) }]
+      : []
+
+  const limitCandidate = findLimitCandidate(request)
+  const limit =
+    limitCandidate !== null ? Math.min(limitCandidate, QUERY_MAX_LIMIT) : null
+
+  if (conditions.length === 0 && sort.length === 0 && limit === null) {
+    return {
+      action: 'clarify',
+      message:
+        'Tell me which rows to keep, for example “where Amount is over 500” or “the top 5 rows by Amount”.',
+    }
+  }
+
+  const plan: SheetAgentFilterPlan = {
+    action: 'filter',
+    conditions,
+    sort,
+    limit,
+    // A plan can be limit-only, in which case there is no comparison column.
+    column: conditions[0]?.column ?? sort[0]?.column ?? '',
+  }
+
+  return plan
+}
+
+/**
+ * Picks the operator, preferring the request's own wording over the model.
+ *
+ * A regex over the request is not wrong, it is *literal*: "over 500" is `>` but
+ * so is "over budget", which is not a numeric comparison at all. So the wording
+ * is checked first, because when it fires it is certainly right, and the model's
+ * choice is the fallback for everything phrased indirectly.
+ */
+function resolveOperator(
+  threshold: { choice: string; confidence: number },
+  operatorAnswer: unknown,
+  request: string,
+): ComparisonOperator | undefined {
+  for (const [pattern, operator] of OPERATOR_HINTS) {
+    if (pattern.test(request)) return operator
+  }
+
+  if (threshold.choice === 'none') return undefined
+
+  const answer = readRecord(operatorAnswer) as {
+    type?: unknown
+    choice?: unknown
+    confidence?: unknown
+  } | null
+  if (
+    answer?.type !== 'choice' ||
+    typeof answer.choice !== 'string' ||
+    !(answer.choice in FILTER_OPERATOR_CRITERIA)
+  ) {
+    return undefined
+  }
+
+  const confidence =
+    typeof answer.confidence === 'number' &&
+    Number.isFinite(answer.confidence) &&
+    answer.confidence >= 0 &&
+    answer.confidence <= 1
+      ? answer.confidence
+      : 0
+
+  if (confidence < CHOICE_CONFIDENCE_FLOOR) return undefined
+
+  return FILTER_OPERATORS[answer.choice as FilterOperator]
+}
+
+/**
+ * The number-like spans in the request, de-duplicated, in the order written.
+ *
+ * Bounded because every candidate becomes an option on a Choice question, which
+ * accepts at most 255. Over-finding is the point: TypeSafe picks, so a candidate
+ * list that is too narrow cannot be recovered from, while one that is too wide
+ * only costs a little precision on an answer the code then verifies anyway.
+ */
+function findThresholdCandidates(request: string): string[] {
+  const seen = new Set<string>()
+  const candidates: string[] = []
+
+  for (const match of request.matchAll(THRESHOLD_PATTERN)) {
+    const span = match[0].trim()
+    // Bare small integers are almost always part of the sentence rather than a
+    // threshold ("top 5 rows"), and `1` or `2` as a filter value is almost never
+    // what someone meant, so both are dropped.
+    if (span === '' || /^\d?$/.test(span.replace(/\D/g, ''))) continue
+    if (seen.has(span.toLowerCase())) continue
+    seen.add(span.toLowerCase())
+    candidates.push(span)
+  }
+
+  return candidates.slice(0, MAX_THRESHOLD_CANDIDATES)
+}
+
+/**
+ * The row count in "the top 5 rows", if the request names one.
+ *
+ * Returned as null when absent, so 0 is never mistaken for "no limit".
+ */
+function findLimitCandidate(request: string): number | null {
+  for (const match of request.matchAll(LIMIT_PATTERN)) {
+    const parsed = Number.parseInt(match[1] ?? '', 10)
+    if (Number.isInteger(parsed) && parsed > 0) return parsed
+  }
+  return null
 }
 
 async function planGroupedAction(

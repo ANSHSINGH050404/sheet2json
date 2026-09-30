@@ -26,6 +26,8 @@ export interface SheetAssistantProps {
 const QUICK_PROMPTS = [
   { label: 'Summarize', request: 'Summarize this sheet' },
   { label: 'Search rows…', request: 'Find rows where ' },
+  { label: 'Filter by value…', request: 'Show rows where ' },
+  { label: 'Top N…', request: 'Show the top 5 rows by ' },
   { label: 'Calculate…', request: 'Calculate the sum of ' },
   {
     label: 'Totals by member…',
@@ -84,8 +86,9 @@ export function SheetAssistant({
           </span>
         </div>
         <p className="mt-1 text-sm text-ink-muted">
-          Summarize, search, calculate, or download data. The assistant will not
-          change your sheet.
+          Summarize, search, filter, calculate, or download data. Filters and
+          calculations run in this app; the assistant will not change your
+          sheet.
         </p>
       </header>
 
@@ -121,7 +124,7 @@ export function SheetAssistant({
               value={request}
               maxLength={SHEET_AGENT_MAX_PROMPT_LENGTH}
               onChange={(event) => setRequest(event.target.value)}
-              placeholder="Try: summarize this sheet, find rows where Status is Pending, or sum the Amount column."
+              placeholder="Try: summarize this sheet, show rows where Amount is over 500, find rows where Status is Pending, or sum the Amount column."
               rows={3}
               required
               disabled={mutation.isPending}

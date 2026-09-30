@@ -73,12 +73,19 @@ sheet.
 ## Sheet assistant
 
 Set `TYPESAFE_API_KEY` in `.env` (or `.env.local`) and your deployment
-environment to enable the read-only assistant. It can summarize a sheet, find
-rows by values, calculate numeric columns, total sent/received amounts by member,
-and prepare CSV or JSON downloads.
-Only the user's request and column names are sent to TypeSafe; calculations and
-exports use rows already loaded in the app. The assistant never writes to a
-sheet or triggers external actions.
+environment to enable the read-only assistant. It can summarize a sheet, filter
+rows by comparing a column to a value, order and cap the results, look rows up
+by value, calculate numeric columns, total sent/received amounts by member, and
+prepare CSV or JSON downloads.
+Only the user's request and column names are sent to TypeSafe; calculations,
+filters and exports use rows already loaded in the app. The assistant never
+writes to a sheet or triggers external actions.
+
+Filters run through the same `?where=` / `?sort=` / `?limit=` layer the REST API
+uses, so "amount over 500" from the assistant and `?where=amount>500` from the
+API cannot disagree. Currency symbols, thousands separators and accounting
+parentheses are understood, so a column holding `$1,200.50` compares numerically
+rather than as text.
 
 ## Product analytics
 

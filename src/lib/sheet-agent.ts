@@ -1,4 +1,7 @@
 import { formatCount } from './format'
+import { AppError } from './errors'
+import { applyRowQuery } from './query'
+import type { Condition } from './query'
 import type {
   SheetAgentAggregateOperation,
   SheetAgentChartData,
@@ -150,6 +153,10 @@ export function executeSheetAgentPlan(
     return executeGroupedAggregate(rows, columns, plan)
   }
 
+  if (plan.action === 'filter') {
+    return executeFilter(rows, columns, plan)
+  }
+
   if (!columns.includes(plan.column)) {
     return {
       kind: 'clarify',
@@ -158,6 +165,113 @@ export function executeSheetAgentPlan(
   }
 
   return aggregateColumn(rows, plan.column, plan.operation)
+}
+
+/**
+ * Runs a planned filter through the same code the `?where=` endpoint uses.
+ *
+ * Delegating to `applyRowQuery` is the point: it means "amount over 500" from the
+ * assistant and `?where=amount>500` from the API cannot disagree, because there
+ * is only one comparison implementation. Re-deriving matching here would be a
+ * second grammar to keep in step with the first, and the two would drift.
+ *
+ * The plan is still validated first, because it came from a model. An unknown
+ * column becomes a clarification rather than the `INVALID_QUERY` that
+ * `applyRowQuery` would throw, since the user typed a sentence rather than a URL
+ * and deserves to be asked again.
+ */
+function executeFilter(
+  rows: SheetRow[],
+  columns: string[],
+  plan: Extract<SheetAgentPlan, { action: 'filter' }>,
+): SheetAgentOutput {
+  const referenced = [
+    ...plan.conditions.map((condition) => condition.column),
+    ...plan.sort.map((spec) => spec.column),
+  ]
+  const unknown = referenced.find((column) => !columns.includes(column))
+  if (unknown !== undefined) {
+    return {
+      kind: 'clarify',
+      message: `I could not match the column “${unknown}”. Please use its exact heading.`,
+    }
+  }
+
+  try {
+    const matched = applyRowQuery(rows, {
+      select: null,
+      conditions: plan.conditions,
+      sort: plan.sort,
+      limit: plan.limit,
+    })
+
+    return {
+      kind: 'matches',
+      message: describeFilter(plan, matched.length),
+      rows: matched,
+    }
+  } catch (error) {
+    // `applyRowQuery` only throws on an unknown column, checked above, or on a
+    // malformed limit. Either way the message is already user-safe.
+    return {
+      kind: 'clarify',
+      message:
+        error instanceof AppError
+          ? error.message
+          : 'I could not apply that filter. Please try rephrasing it.',
+    }
+  }
+}
+
+/**
+ * Explains the recipe in the same words a `?where=` URL would express it.
+ *
+ * Showing the comparison back is what lets a user tell "over 500" from "under
+ * 500" at a glance, which is the failure mode worth catching.
+ */
+function describeFilter(
+  plan: Extract<SheetAgentPlan, { action: 'filter' }>,
+  matchCount: number,
+): string {
+  const parts: string[] = []
+
+  for (const { column, operator, value } of plan.conditions) {
+    parts.push(`“${column}” ${describeOperator(operator)} ${value}`)
+  }
+  const primarySort = plan.sort[0]
+  if (primarySort !== undefined) {
+    parts.push(
+      primarySort.direction === 'desc'
+        ? `highest “${primarySort.column}” first`
+        : `lowest “${primarySort.column}” first`,
+    )
+  }
+
+  const scope =
+    parts.length > 0
+      ? `Kept rows where ${parts.join(' and ')}`
+      : `Showing the first ${formatCount(plan.limit ?? 0)} rows`
+
+  return `${scope}. ${formatCount(matchCount)} ${matchCount === 1 ? 'row' : 'rows'} in this sheet ${matchCount === 1 ? 'matches' : 'match'}.`
+}
+
+function describeOperator(operator: Condition['operator']): string {
+  switch (operator) {
+    case '=':
+      return 'is'
+    case '!=':
+      return 'is not'
+    case '~':
+      return 'contains'
+    case '>':
+      return 'is over'
+    case '>=':
+      return 'is at least'
+    case '<':
+      return 'is under'
+    case '<=':
+      return 'is at most'
+  }
 }
 
 function executeGroupedAggregate(

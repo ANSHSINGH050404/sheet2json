@@ -214,6 +214,278 @@ describe('planSheetAction', () => {
     })
   })
 
+  it('plans a numeric filter by copying the threshold the user wrote', async () => {
+    const captured: Record<string, unknown>[] = []
+    let call = 0
+    const fetchImpl = (async (
+      _input: RequestInfo | URL,
+      init?: RequestInit,
+    ) => {
+      call += 1
+      const payload = JSON.parse(String(init?.body)) as Record<string, unknown>
+      captured.push(payload)
+
+      if (call === 1) {
+        return Response.json({
+          answers: {
+            action: choiceAnswer('filter'),
+            column: choiceAnswer('column_1'),
+            operation: choiceAnswer('none'),
+          },
+        })
+      }
+
+      return Response.json({
+        answers: {
+          column: choiceAnswer('column_1'),
+          operator: choiceAnswer('greater_than'),
+          threshold: choiceAnswer('value_5000'),
+          sort_column: choiceAnswer('none'),
+        },
+      })
+    }) as unknown as typeof fetch
+
+    await expect(
+      planSheetAction(
+        'show rows where Amount is over 5000',
+        ['Name', 'Amount'],
+        {
+          apiKey: 'test-typesafe-key',
+          fetchImpl,
+        },
+      ),
+    ).resolves.toEqual({
+      action: 'filter',
+      conditions: [{ column: 'Amount', operator: '>', value: '5000' }],
+      sort: [],
+      limit: null,
+      column: 'Amount',
+    })
+
+    // The threshold is offered as a candidate span, so the answer can only be a
+    // value that was in the request. This is the property the test exists for.
+    expect(JSON.stringify(captured)).toContain('value_5000')
+  })
+
+  it('reads the operator from the request wording rather than the model', async () => {
+    let call = 0
+    const fetchImpl = (async () => {
+      call += 1
+      if (call === 1) {
+        return Response.json({
+          answers: {
+            action: choiceAnswer('filter'),
+            column: choiceAnswer('column_0'),
+            operation: choiceAnswer('none'),
+          },
+        })
+      }
+      return Response.json({
+        answers: {
+          column: choiceAnswer('column_0'),
+          // Deliberately wrong: the request says "under 100". A regex over the
+          // request is literal where a judgment is inferred, so the wording wins.
+          operator: choiceAnswer('greater_than'),
+          threshold: choiceAnswer('value_100'),
+          sort_column: choiceAnswer('none'),
+        },
+      })
+    }) as unknown as typeof fetch
+
+    await expect(
+      planSheetAction('show rows where Amount is under 100', ['Amount'], {
+        apiKey: 'test-typesafe-key',
+        fetchImpl,
+      }),
+    ).resolves.toMatchObject({
+      action: 'filter',
+      conditions: [{ column: 'Amount', operator: '<', value: '100' }],
+    })
+  })
+
+  it('orders ascending when the request asks for the lowest values', async () => {
+    let call = 0
+    const fetchImpl = (async () => {
+      call += 1
+      if (call === 1) {
+        return Response.json({
+          answers: {
+            action: choiceAnswer('filter'),
+            column: choiceAnswer('none'),
+            operation: choiceAnswer('none'),
+          },
+        })
+      }
+      return Response.json({
+        answers: {
+          column: choiceAnswer('none'),
+          operator: choiceAnswer('none'),
+          threshold: choiceAnswer('none'),
+          // The model returns a sort column here; the direction is decided from
+          // the request's own wording, because "lowest" cannot be read any other
+          // way and a flipped direction returns plausible wrong rows.
+          sort_column: choiceAnswer('sort_0'),
+        },
+      })
+    }) as unknown as typeof fetch
+
+    await expect(
+      planSheetAction('show the lowest Amount first', ['Amount'], {
+        apiKey: 'test-typesafe-key',
+        fetchImpl,
+      }),
+    ).resolves.toMatchObject({
+      action: 'filter',
+      sort: [{ column: 'Amount', direction: 'asc' }],
+    })
+  })
+
+  it('turns a bare "top N" into a limit rather than asking which column', async () => {
+    let call = 0
+    const fetchImpl = (async () => {
+      call += 1
+      if (call === 1) {
+        return Response.json({
+          answers: {
+            action: choiceAnswer('filter'),
+            column: choiceAnswer('none'),
+            operation: choiceAnswer('none'),
+          },
+        })
+      }
+      return Response.json({
+        answers: {
+          column: choiceAnswer('none'),
+          operator: choiceAnswer('none'),
+          threshold: choiceAnswer('none'),
+          // No ranking column either: "top 5 rows" caps the sheet as it stands,
+          // so the plan is a limit and nothing else.
+          sort_column: choiceAnswer('none'),
+        },
+      })
+    }) as unknown as typeof fetch
+
+    await expect(
+      planSheetAction('show the top 5 rows', ['Name'], {
+        apiKey: 'test-typesafe-key',
+        fetchImpl,
+      }),
+    ).resolves.toEqual({
+      action: 'filter',
+      conditions: [],
+      sort: [],
+      limit: 5,
+      column: '',
+    })
+  })
+
+  it('keeps both a ranking and a cap when the request names both', async () => {
+    let call = 0
+    const fetchImpl = (async () => {
+      call += 1
+      if (call === 1) {
+        return Response.json({
+          answers: {
+            action: choiceAnswer('filter'),
+            column: choiceAnswer('none'),
+            operation: choiceAnswer('none'),
+          },
+        })
+      }
+      return Response.json({
+        answers: {
+          column: choiceAnswer('none'),
+          operator: choiceAnswer('none'),
+          threshold: choiceAnswer('none'),
+          sort_column: choiceAnswer('sort_0'),
+        },
+      })
+    }) as unknown as typeof fetch
+
+    await expect(
+      planSheetAction('show the top 5 rows by Amount', ['Amount'], {
+        apiKey: 'test-typesafe-key',
+        fetchImpl,
+      }),
+    ).resolves.toEqual({
+      action: 'filter',
+      conditions: [],
+      sort: [{ column: 'Amount', direction: 'desc' }],
+      limit: 5,
+      column: 'Amount',
+    })
+  })
+
+  it('asks which value to compare when the request names no threshold', async () => {
+    let call = 0
+    const fetchImpl = (async () => {
+      call += 1
+      if (call === 1) {
+        return Response.json({
+          answers: {
+            action: choiceAnswer('filter'),
+            column: choiceAnswer('column_0'),
+            operation: choiceAnswer('none'),
+          },
+        })
+      }
+      return Response.json({
+        answers: {
+          column: choiceAnswer('column_0'),
+          operator: choiceAnswer('greater_than'),
+          threshold: choiceAnswer('none'),
+          sort_column: choiceAnswer('none'),
+        },
+      })
+    }) as unknown as typeof fetch
+
+    const plan = await planSheetAction(
+      'show rows where Amount is over something',
+      ['Amount'],
+      { apiKey: 'test-typesafe-key', fetchImpl },
+    )
+
+    expect(plan.action).toBe('clarify')
+  })
+
+  it('never sends row values to TypeSafe when planning a filter', async () => {
+    const captured: Record<string, unknown>[] = []
+    let call = 0
+    const fetchImpl = (async (
+      _input: RequestInfo | URL,
+      init?: RequestInit,
+    ) => {
+      call += 1
+      captured.push(JSON.parse(String(init?.body)) as Record<string, unknown>)
+      if (call === 1) {
+        return Response.json({
+          answers: {
+            action: choiceAnswer('filter'),
+            column: choiceAnswer('column_0'),
+            operation: choiceAnswer('none'),
+          },
+        })
+      }
+      return Response.json({
+        answers: {
+          column: choiceAnswer('column_0'),
+          operator: choiceAnswer('greater_than'),
+          threshold: choiceAnswer('value_5000'),
+          sort_column: choiceAnswer('none'),
+        },
+      })
+    }) as unknown as typeof fetch
+
+    await planSheetAction('rows where Amount is over 5000', ['Amount'], {
+      apiKey: 'test-typesafe-key',
+      fetchImpl,
+    })
+
+    const body = JSON.stringify(captured)
+    expect(body).not.toContain('ansh@example.com')
+    expect(body).not.toContain('Rahul')
+  })
+
   it('fails clearly when no TypeSafe API key is configured', async () => {
     await expect(
       planSheetAction('summarize this sheet', ['Status'], {

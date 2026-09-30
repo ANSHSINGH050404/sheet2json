@@ -5,7 +5,7 @@
  * so it can safely be bundled into the browser.
  */
 
-import type { RowQuery } from './query'
+import type { Condition, RowQuery, SortSpec } from './query'
 
 /** A validated pointer to a Google Sheet. */
 export interface GoogleSheetReference {
@@ -87,6 +87,24 @@ export interface SheetAgentChartData {
   series: Array<{ name: string; values: number[] }>
 }
 
+/**
+ * A filter expressed in the API's own query grammar rather than a bespoke shape.
+ *
+ * Reusing `Condition` and `SortSpec` is deliberate: the assistant then filters
+ * through `applyRowQuery`, the same function `?where=` and `?sort=` use, so a
+ * filter typed as "amount over 500" behaves exactly as `?where=amount>500` does.
+ * One implementation of comparison and ordering means the assistant cannot drift
+ * from the endpoint it is describing.
+ */
+export interface SheetAgentFilterPlan {
+  action: 'filter'
+  conditions: Condition[]
+  sort: SortSpec[]
+  limit: number | null
+  /** Echoed back so the executor can explain the recipe it applied. */
+  column: string
+}
+
 /** A bounded action plan returned by the server-side TypeSafe router. */
 export type SheetAgentPlan =
   | { action: 'summarize' }
@@ -99,6 +117,7 @@ export type SheetAgentPlan =
   | { action: 'export' }
   | { action: 'clarify'; message: string }
   | SheetAgentGroupPlan
+  | SheetAgentFilterPlan
 
 /** User-safe error codes surfaced to the UI. */
 export type AppErrorCode =

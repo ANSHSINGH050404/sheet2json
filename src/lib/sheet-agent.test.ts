@@ -57,7 +57,10 @@ describe('executeSheetAgentPlan', () => {
     ).toEqual({ kind: 'aggregate', message: 'Sum for “Amount”: 2,000.5.' })
   })
 
-  it('clarifies numeric row filters instead of treating them as text searches', () => {
+  it('clarifies a numeric comparison that arrives as a search plan', () => {
+    // A search plan cannot express ">500", so the executor still refuses rather
+    // than silently substring-matching the digits. The filter action is the
+    // supported path; this guards the old plan shape from being reinterpreted.
     expect(
       executeSheetAgentPlan(
         'show rows where Amount is greater than 500',
@@ -69,6 +72,65 @@ describe('executeSheetAgentPlan', () => {
       kind: 'clarify',
       message:
         'Numeric row filters are not supported yet. Search for an exact value, or ask for a sum, average, minimum, or maximum.',
+    })
+  })
+
+  it('applies a numeric filter using the same comparison as the query layer', () => {
+    const result = executeSheetAgentPlan(
+      'show rows where Amount is over 500',
+      ROWS,
+      COLUMNS,
+      {
+        action: 'filter',
+        conditions: [{ column: 'Amount', operator: '>', value: '500' }],
+        sort: [],
+        limit: null,
+        column: 'Amount',
+      },
+    )
+
+    expect(result.kind).toBe('matches')
+    if (result.kind !== 'matches') throw new Error('Expected matching rows')
+    // "$1,200.50" and "800" both clear 500. The currency formatting is stripped
+    // because the comparison is numeric, exactly as ?where=Amount>500 behaves.
+    expect(result.rows).toEqual([ADA, GRACE])
+    expect(result.message).toBe(
+      'Kept rows where “Amount” is over 500. 2 rows in this sheet match.',
+    )
+  })
+
+  it('orders and caps rows for a ranking request', () => {
+    const result = executeSheetAgentPlan('top 2 by Amount', ROWS, COLUMNS, {
+      action: 'filter',
+      conditions: [],
+      sort: [{ column: 'Amount', direction: 'desc' }],
+      limit: 2,
+      column: 'Amount',
+    })
+
+    expect(result.kind).toBe('matches')
+    if (result.kind !== 'matches') throw new Error('Expected matching rows')
+    expect(result.rows).toEqual([ADA, GRACE])
+  })
+
+  it('asks again rather than filtering on a column the sheet does not have', () => {
+    const result = executeSheetAgentPlan(
+      'show rows where Revenue is over 500',
+      ROWS,
+      COLUMNS,
+      {
+        action: 'filter',
+        conditions: [{ column: 'Revenue', operator: '>', value: '500' }],
+        sort: [],
+        limit: null,
+        column: 'Revenue',
+      },
+    )
+
+    expect(result).toEqual({
+      kind: 'clarify',
+      message:
+        'I could not match the column “Revenue”. Please use its exact heading.',
     })
   })
 
