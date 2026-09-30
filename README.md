@@ -302,3 +302,11 @@ rows at the top of that file and re-run. `src/lib/site.ts` holds the absolute UR
 and the description, and `src/lib/site.test.ts` checks the things that silently
 break a preview: a relative image URL, the wrong aspect ratio, a description that
 gets truncated.
+
+## License
+
+MIT — see [LICENSE](LICENSE).
+
+You are welcome to use this, self-host it, or take it apart. If you deploy it
+yourself, note that it asks for the `spreadsheets.readonly` scope and nothing
+else, so your users' grants stay as narrow as this app's were.
