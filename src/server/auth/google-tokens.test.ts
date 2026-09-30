@@ -103,6 +103,7 @@ const created: string[] = []
 process.env.TOKEN_ENCRYPTION_KEY = ENCRYPTION_KEY
 
 afterAll(async () => {
+  if (!hasDatabase || created.length === 0) return
   await getPrisma().user.deleteMany({ where: { id: { in: created } } })
 })
 
