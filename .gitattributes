@@ -1,0 +1,8 @@
+# Normalise line endings in the repository and check them out as LF everywhere.
+#
+# Without this, `core.autocrlf=true` on Windows checks text files out as CRLF
+# while the committed blobs are LF. Prettier's default `endOfLine: 'lf'` then
+# fails `bun run check` on a fresh checkout, even though CI - which checks out
+# LF - is green. Pinning the working tree to LF makes the local and CI
+# formatting gates agree.
+* text=auto eol=lf
