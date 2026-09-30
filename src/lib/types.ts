@@ -136,6 +136,7 @@ export type AppErrorCode =
   | 'INTERNAL_ERROR'
   | 'AI_NOT_CONFIGURED'
   | 'AI_REQUEST_FAILED'
+  | 'NO_SEMANTIC_MATCH'
   // Auth and API. These only ever reach a signed-in caller or an API consumer.
   | 'UNAUTHENTICATED'
   | 'FORBIDDEN'

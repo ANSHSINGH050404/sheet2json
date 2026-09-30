@@ -1,4 +1,4 @@
-import { useMutation } from '@tanstack/react-query'
+import { useMutation, useQuery } from '@tanstack/react-query'
 import { useEffect, useId, useState } from 'react'
 
 import { DataTable } from '#components/data-table'
@@ -9,12 +9,17 @@ import { rowsToCsv } from '#lib/csv'
 import { executeSheetAgentPlan } from '#lib/sheet-agent'
 import type { SheetAgentOutput } from '#lib/sheet-agent'
 import {
+  SEMANTIC_SEARCH_MAX_ROWS,
   SHEET_AGENT_MAX_COLUMNS,
   SHEET_AGENT_MAX_COLUMN_NAME_LENGTH,
   SHEET_AGENT_MAX_PROMPT_LENGTH,
 } from '#lib/constants'
 import type { SheetRow } from '#lib/types'
 import { planSheetAgentFn } from '#server/api/sheet-agent'
+import {
+  getSemanticSearchConfigFn,
+  rankSheetRowsFn,
+} from '#server/api/semantic-search'
 
 export interface SheetAssistantProps {
   rows: SheetRow[]
@@ -22,6 +27,18 @@ export interface SheetAssistantProps {
   /** Clears the previous answer when a live sheet refreshes. */
   dataVersion: string
 }
+
+/**
+ * What the semantic pass can return.
+ *
+ * A subset of `SheetAgentOutput`, declared separately because `Pick` over the
+ * union would not narrow `kind` to the two members this path can produce, and a
+ * type that admits a `grouped` result here would be a lie about what the server
+ * can send back.
+ */
+type SemanticOutput =
+  | { kind: 'matches'; message: string; rows: SheetRow[] }
+  | { kind: 'clarify'; message: string; rows: SheetRow[] }
 
 const QUICK_PROMPTS = [
   { label: 'Summarize', request: 'Summarize this sheet' },
@@ -44,7 +61,19 @@ export function SheetAssistant({
 }: SheetAssistantProps) {
   const columns = Object.keys(rows[0] ?? {})
   const [request, setRequest] = useState('')
+  const [semanticPrompt, setSemanticPrompt] = useState('')
   const requestId = useId()
+  const semanticId = useId()
+
+  // Whether the affordance is offered at all. Resolved once per sheet rather
+  // than on every render, and defaulting to false so the button never appears
+  // before the answer is known.
+  const availability = useQuery({
+    queryKey: ['semantic-search-config'],
+    queryFn: () => getSemanticSearchConfigFn().then(unwrap),
+    staleTime: Infinity,
+  })
+  const semanticSearchAvailable = availability.data?.available ?? false
   const mutation = useMutation({
     mutationFn: async (prompt: string) => {
       trackAnalytics({ event: 'sheet_assistant_requested' })
@@ -60,11 +89,69 @@ export function SheetAssistant({
       return output
     },
   })
+
+  /**
+   * The semantic pass, which is opt-in and separate from the main request.
+   *
+   * Only reachable when the literal search has already come back empty: it is a
+   * second, more expensive call, so it never runs speculatively.
+   */
+  const semantic = useMutation<SemanticOutput, Error, string>({
+    mutationFn: async (prompt: string): Promise<SemanticOutput> => {
+      trackAnalytics({ event: 'sheet_semantic_search_requested' })
+      const scannable = rows.slice(0, SEMANTIC_SEARCH_MAX_ROWS)
+      const result = await rankSheetRowsFn({
+        data: { request: prompt, rows: scannable },
+      }).then(unwrap)
+
+      trackAnalytics({
+        event: 'sheet_semantic_search_completed',
+        result_kind: result.matches.length > 0 ? 'matches' : 'none',
+        skipped_rows: Math.max(0, rows.length - scannable.length),
+      })
+
+      if (result.matches.length === 0) {
+        return {
+          kind: 'clarify',
+          message: `No rows look like a match${result.skippedRows > 0 ? ` in the first ${SEMANTIC_SEARCH_MAX_ROWS} rows` : ''}. Try naming a value that appears in the sheet.`,
+          rows: [] as SheetRow[],
+        }
+      }
+
+      // An index the server sent that is out of range cannot be turned back into
+      // a row, and a filtered hole in the table would be a silent wrong answer,
+      // so the row is dropped rather than rendered as undefined.
+      const matched = result.matches
+        .map((index) => scannable[index])
+        .filter((row): row is SheetRow => row !== undefined)
+
+      return {
+        kind: 'matches',
+        message: `Found ${formatCount(matched.length)} rows that look relevant.`,
+        rows: matched,
+      }
+    },
+  })
   const reset = mutation.reset
 
   useEffect(() => {
     reset()
-  }, [dataVersion, reset])
+    semantic.reset()
+    setSemanticPrompt('')
+  }, [dataVersion, reset, semantic.reset])
+
+  /**
+   * The semantic pass is only worth offering when the literal search found
+   * nothing. If the substring search already answered the question, this is a
+   * slower and more expensive way to reach the same rows.
+   */
+  const searchFoundNothing =
+    mutation.data?.kind === 'matches' && mutation.data.rows.length === 0
+  const shouldOfferSemanticSearch =
+    semanticSearchAvailable &&
+    searchFoundNothing &&
+    request.trim().length >= 3 &&
+    rows.length > 0
 
   if (rows.length === 0 || columns.length === 0) return null
 
@@ -188,8 +275,131 @@ export function SheetAssistant({
             fileName={title}
           />
         ) : null}
+
+        {shouldOfferSemanticSearch ? (
+          <SemanticSearchOffer
+            id={semanticId}
+            prompt={semanticPrompt}
+            onPromptChange={setSemanticPrompt}
+            onSubmit={() => {
+              const prompt = semanticPrompt.trim() || request.trim()
+              if (prompt) semantic.mutate(prompt)
+            }}
+            isPending={semantic.isPending}
+            error={semantic.isError ? semantic.error.message : null}
+            output={semantic.data ?? null}
+            columns={columns}
+            fileName={title}
+            sheetRowCount={rows.length}
+          />
+        ) : null}
       </div>
     </section>
+  )
+}
+
+/**
+ * The opt-in semantic pass.
+ *
+ * Rendered only after a literal search found nothing, and always with the data
+ * it will send stated up front. This is the only feature in the app that puts
+ * row values into an external request, and it would rather lose the user than
+ * send their data without saying so.
+ */
+function SemanticSearchOffer({
+  id,
+  prompt,
+  onPromptChange,
+  onSubmit,
+  isPending,
+  error,
+  output,
+  columns,
+  fileName,
+  sheetRowCount,
+}: {
+  id: string
+  prompt: string
+  onPromptChange: (value: string) => void
+  onSubmit: () => void
+  isPending: boolean
+  error: string | null
+  output: SemanticOutput | null
+  columns: string[]
+  fileName: string
+  sheetRowCount: number
+}) {
+  const scannable = Math.min(sheetRowCount, SEMANTIC_SEARCH_MAX_ROWS)
+
+  return (
+    <div className="space-y-3 rounded-lg border border-line bg-surface-muted p-4">
+      <div>
+        <h3 className="text-sm font-semibold text-ink-strong">
+          No rows matched that exactly
+        </h3>
+        <p className="mt-1 text-xs leading-relaxed text-ink-subtle">
+          You can search by meaning instead &mdash; ask for rows that look like
+          a match even if they use different words.
+        </p>
+      </div>
+
+      <p className="rounded-md border border-warning-line bg-warning-soft px-3 py-2 text-xs leading-relaxed text-warning">
+        This sends up to {scannable} of your rows (first{' '}
+        {SEMANTIC_SEARCH_MAX_ROWS}, each cell shortened) to the AI service to
+        rank them. The rest of the assistant never sends row values.
+      </p>
+
+      <div>
+        <label
+          htmlFor={id}
+          className="block text-xs font-medium text-ink-muted"
+        >
+          What should the rows look like?
+        </label>
+        <input
+          id={id}
+          value={prompt}
+          onChange={(event) => onPromptChange(event.target.value)}
+          placeholder="e.g. rows where payment is late"
+          maxLength={SHEET_AGENT_MAX_PROMPT_LENGTH}
+          disabled={isPending}
+          className="mt-1 w-full rounded-md border border-line-strong bg-surface px-3 py-2 text-sm text-ink placeholder:text-ink-faint focus:ring-2 focus:ring-ink/10 focus:outline-none disabled:bg-surface-muted"
+        />
+      </div>
+
+      <div className="flex flex-wrap items-center justify-between gap-3">
+        <p className="text-[11px] text-ink-subtle">
+          {sheetRowCount > scannable
+            ? `Only the first ${scannable} of ${formatCount(sheetRowCount)} rows are searched.`
+            : `Searching ${formatCount(scannable)} rows.`}
+        </p>
+        <button
+          type="button"
+          onClick={onSubmit}
+          disabled={isPending || prompt.trim().length < 3}
+          className="rounded-md border border-line-strong bg-surface px-3 py-1.5 text-xs font-semibold text-ink-strong transition-colors hover:bg-surface-muted focus:ring-2 focus:ring-ink-subtle focus:ring-offset-2 focus:outline-none disabled:opacity-60"
+        >
+          {isPending ? 'Ranking rows...' : 'Search by meaning'}
+        </button>
+      </div>
+
+      {error ? (
+        <p
+          role="alert"
+          className="rounded-md border border-danger-line bg-danger-soft px-3 py-2 text-xs text-danger-muted"
+        >
+          {error}
+        </p>
+      ) : null}
+
+      {output ? (
+        <AssistantOutput
+          output={output}
+          columns={columns}
+          fileName={fileName}
+        />
+      ) : null}
+    </div>
   )
 }
 
@@ -198,7 +408,7 @@ function AssistantOutput({
   columns,
   fileName,
 }: {
-  output: SheetAgentOutput
+  output: SemanticOutput | SheetAgentOutput
   columns: string[]
   fileName: string
 }) {

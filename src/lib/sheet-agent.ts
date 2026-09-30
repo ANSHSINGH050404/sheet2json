@@ -76,6 +76,14 @@ const SEARCH_STOP_WORDS = new Set([
 const NUMERIC_COMPARISON_PATTERN =
   /\b(?:above|at least|at most|below|greater than|less than|more than|over|under)\b|[<>]=?/i
 
+/**
+ * How many rows one semantic-search request may score.
+ *
+ * Re-exported from `constants` so the server module does not have to reach into
+ * this file to find the bound.
+ */
+export { SEMANTIC_SEARCH_MAX_ROWS } from './constants'
+
 /** Executes an approved, bounded plan against rows already loaded in the UI. */
 export function executeSheetAgentPlan(
   request: string,

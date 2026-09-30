@@ -1,16 +1,15 @@
 import { AppError } from '#lib/errors'
 import { QUERY_MAX_LIMIT, SHEET_AGENT_MAX_COLUMNS } from '#lib/constants'
 import type { ComparisonOperator } from '#lib/query'
+import { requestTypeSafe } from './typesafe-client'
 import type {
   SheetAgentAggregateOperation,
   SheetAgentFilterPlan,
   SheetAgentPlan,
 } from '#lib/types'
 
-const TYPESAFE_ENDPOINT = 'https://api.typesafe.ai/v1/systemone'
 const TYPESAFE_MODEL = 'jev-latest'
 const CHOICE_CONFIDENCE_FLOOR = 0.55
-const REQUEST_TIMEOUT_MS = 15_000
 
 const ACTION_CRITERIA = {
   summarize:
@@ -850,63 +849,6 @@ async function planGroupedAction(
   }
 }
 
-async function requestTypeSafe(
-  payload: unknown,
-  apiKey: string,
-  fetchImpl: typeof fetch = fetch,
-): Promise<Response> {
-  const body = JSON.stringify(payload)
-
-  for (let attempt = 0; attempt < 2; attempt += 1) {
-    let response: Response
-    try {
-      response = await fetchImpl(TYPESAFE_ENDPOINT, {
-        method: 'POST',
-        redirect: 'error',
-        signal: AbortSignal.timeout(REQUEST_TIMEOUT_MS),
-        headers: {
-          authorization: `Bearer ${apiKey}`,
-          'content-type': 'application/json',
-          accept: 'application/json',
-        },
-        body,
-      })
-    } catch (cause) {
-      if (attempt === 0) {
-        await delay(250)
-        continue
-      }
-      throw new AppError(
-        'AI_REQUEST_FAILED',
-        'The sheet assistant could not reach its AI service. Please try again.',
-        cause,
-      )
-    }
-
-    if (response.ok) return response
-
-    if ([429, 529].includes(response.status) && attempt === 0) {
-      await delay(readRetryDelay(response))
-      continue
-    }
-
-    throw new AppError(
-      'AI_REQUEST_FAILED',
-      response.status === 401
-        ? 'The sheet assistant API key is not valid. Check TYPESAFE_API_KEY.'
-        : [429, 529].includes(response.status)
-          ? 'The sheet assistant is busy. Please try again shortly.'
-          : 'The sheet assistant could not plan that action. Please try again.',
-      `TypeSafe status: ${response.status}`,
-    )
-  }
-
-  throw new AppError(
-    'AI_REQUEST_FAILED',
-    'The sheet assistant could not reach its AI service. Please try again.',
-  )
-}
-
 async function readResponseBody(response: Response): Promise<unknown> {
   try {
     return await response.json()
@@ -954,14 +896,4 @@ function readChoiceAnswer(
   }
 }
 
-function readRetryDelay(response: Response): number {
-  const retryAfter = Number(response.headers.get('retry-after'))
-  if (Number.isFinite(retryAfter) && retryAfter > 0) {
-    return Math.min(1000, Math.max(100, retryAfter * 1000))
-  }
-  return 300
-}
-
-function delay(milliseconds: number): Promise<void> {
-  return new Promise((resolve) => setTimeout(resolve, milliseconds))
-}
+/** Exported for the semantic-search module, which shares this transport. */

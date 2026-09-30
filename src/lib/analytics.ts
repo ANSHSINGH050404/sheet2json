@@ -33,6 +33,18 @@ export type AnalyticsEvent =
       format: 'csv' | 'json'
       row_count: number
     }
+  /**
+   * The semantic search is tracked separately from the other assistant events
+   * because it is the only one that sends sheet values to a third party. Counting
+   * how often it is used, and how often it is declined by finding nothing, is how
+   * a change to that data boundary would be judged before it is made.
+   */
+  | { event: 'sheet_semantic_search_requested' }
+  | {
+      event: 'sheet_semantic_search_completed'
+      result_kind: 'matches' | 'none'
+      skipped_rows: number
+    }
 
 export type AnalyticsRoute =
   | 'home'

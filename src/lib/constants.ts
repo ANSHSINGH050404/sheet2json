@@ -5,6 +5,26 @@
  * never imported from client code.
  */
 
+/**
+ * How many rows one semantic-search request may score.
+ *
+ * Each row becomes a Noul question, so this bounds both the token cost and the
+ * size of the outgoing payload. A sheet with more rows than this is searched
+ * only in part, and the result says so: a search that quietly ignored most of the
+ * sheet would be worse than one that admits its bound.
+ */
+export const SEMANTIC_SEARCH_MAX_ROWS = 100
+
+/**
+ * Per-cell and per-row bounds for the semantic-search payload.
+ *
+ * These exist because this is the one request that sends sheet *values*. A cell
+ * can hold a paragraph; a relevance judgment does not need all of it, so cells
+ * are truncated before they are sent rather than after they arrive.
+ */
+export const SEMANTIC_SEARCH_MAX_CELL_CHARS = 120
+export const SEMANTIC_SEARCH_MAX_CELLS = 12
+
 /** Rows rendered in the table before the "Show more" button appears. */
 export const TABLE_PAGE_SIZE = 200
 

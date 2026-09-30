@@ -81,6 +81,19 @@ Only the user's request and column names are sent to TypeSafe; calculations,
 filters and exports use rows already loaded in the app. The assistant never
 writes to a sheet or triggers external actions.
 
+### Search by meaning
+
+A literal search matches substrings, which is right for "Status is Pending" and
+useless for "which invoices are overdue" — no cell contains the word *overdue*.
+When a search comes back empty the assistant offers to rank rows by meaning
+instead, which sends up to 100 rows to the AI service, with each cell shortened
+before it is sent.
+
+This is the **only** request the app makes that carries sheet values, so it is
+opt-in, states what it will send before it sends it, and is hidden entirely when
+`TYPESAFE_API_KEY` is not set. Every other assistant call sends the request and
+the column names and nothing else.
+
 Filters run through the same `?where=` / `?sort=` / `?limit=` layer the REST API
 uses, so "amount over 500" from the assistant and `?where=amount>500` from the
 API cannot disagree. Currency symbols, thousands separators and accounting
