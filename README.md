@@ -84,7 +84,7 @@ writes to a sheet or triggers external actions.
 ### Search by meaning
 
 A literal search matches substrings, which is right for "Status is Pending" and
-useless for "which invoices are overdue" — no cell contains the word *overdue*.
+useless for "which invoices are overdue" — no cell contains the word _overdue_.
 When a search comes back empty the assistant offers to rank rows by meaning
 instead, which sends up to 100 rows to the AI service, with each cell shortened
 before it is sent.
