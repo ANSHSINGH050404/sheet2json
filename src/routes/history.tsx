@@ -11,9 +11,9 @@ function HistoryLayout() {
           Recent Extractions
         </h1>
         <p className="mt-2 max-w-2xl text-sm text-ink-muted">
-          Every extraction run on this instance. There are no user accounts in
-          the MVP, so this history is shared by all visitors &mdash; entries are
-          not private to whoever created them.
+          Every extraction you have run while signed in. History belongs to your
+          account and is only visible to you &mdash; a row owned by another
+          account reads as not found rather than forbidden.
         </p>
       </header>
 

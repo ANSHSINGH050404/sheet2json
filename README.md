@@ -173,7 +173,7 @@ src/
   server/
     auth/            sessions, API keys, OAuth, token crypto
     api/             API middleware: auth, CORS, rate limits, response shapes
-    google-sheets/   URL validation, CSV fetch, parsing
+    google-sheets/   URL validation, CSV fetch + retry, parsing, sheet cache
     services/        the extraction pipeline and history queries
   components/        presentational React
   lib/               types shared by client and server; no server imports
@@ -197,6 +197,17 @@ matter:
 - **The API allows any origin without credentials.** The credential travels in a
   header, and the responses do not opt into credentialed requests, so there is no
   ambient authority for another site to spend.
+- **The parsed-sheet cache is keyed on the reader, not just the sheet.** A sheet
+  read with one user's Google grant must never reach another user, so anonymous
+  and per-user reads occupy separate entries even for the same public sheet. It
+  is in-process rather than shared: a lost instance costs one extra fetch and
+  nothing else, which beats a cache that needs invalidating, sizing and paying
+  for. Concurrent misses on one sheet share a single upstream request, which is
+  what stops fifty open tabs from becoming fifty Google fetches.
+- **The data path retries; the LLM path already did.** A 429, a 5xx or a dropped
+  connection is retried with exponential backoff, honouring `Retry-After`. A 4xx
+  is not retried — a private or deleted sheet stays that way — and neither is a
+  timeout, because three 20s attempts would exceed the platform's own budget.
 - **The query layer is a grammar, not an evaluator.** `select`, `where`, `sort`
   and `limit` are a small hand-written parser with no `eval` and no nesting: the
   parameters arrive in a URL from an anonymous caller, so the grammar has to be

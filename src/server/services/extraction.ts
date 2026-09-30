@@ -5,8 +5,7 @@ import type { RowQuery } from '#lib/query'
 import type { ExtractionDetail, ExtractionSummary, SheetRow } from '#lib/types'
 import { HISTORY_PAGE_SIZE } from '../config'
 import { getPrisma } from '../db/prisma'
-import { parseSheetCsv } from '../google-sheets/extractor'
-import { fetchSheetCsv } from '../google-sheets/fetcher'
+import { getParsedSheet } from '../google-sheets/cache'
 import { extractSheetTitle, parseGoogleSheetUrl } from '../google-sheets/parser'
 
 export interface ExtractSheetOptions {
@@ -61,11 +60,14 @@ export async function extractSheet(
     options.fetchImpl,
   )
 
-  const csv = await fetchSheetCsv(reference, {
-    fetchImpl: options.fetchImpl,
+  const parsed = await getParsedSheet(reference, {
+    // The reader is part of the cache key, so a signed-in user's rows can never
+    // be served to an anonymous caller, even for a public sheet.
+    userId: options.userId ?? null,
+    maxRows: options.maxRows,
+    ...(options.fetchImpl ? { fetchImpl: options.fetchImpl } : {}),
     ...(accessToken ? { accessToken } : {}),
   })
-  const parsed = await parseSheetCsv(csv, { maxRows: options.maxRows })
 
   // An unknown column is rejected here rather than silently yielding no rows.
   const data =

@@ -1,10 +1,21 @@
-import { afterAll, beforeAll, describe, expect, it } from 'bun:test'
+import { afterAll, beforeAll, beforeEach, describe, expect, it } from 'bun:test'
 
 import type { AppError } from '#lib/errors'
 import { parseRowQuery } from '#lib/query'
 import type { ExtractionDetail } from '#lib/types'
 import { getPrisma } from '#server/db/prisma'
+import { clearSheetCache } from '#server/google-sheets/cache'
 import { extractSheet } from '#server/services/extraction'
+
+/**
+ * The parsed-sheet cache is module-level state, and these tests mock the network
+ * with a different body per test. That deliberately breaks the cache's core
+ * assumption - the same key means the same content - so it has to be cleared
+ * between tests or a later test silently reads an earlier test's rows.
+ */
+beforeEach(() => {
+  clearSheetCache()
+})
 
 const SHEET_ID = '1BxiMVs0XRA5nFMdKvBdBZjgmUUqptlbs74OgvE2upms'
 const URL = `https://docs.google.com/spreadsheets/d/${SHEET_ID}/edit#gid=0&title=Leads`
@@ -174,12 +185,65 @@ describe('extractSheet with a row query (no database needed)', () => {
   it('rejects an unknown column with INVALID_QUERY, after the fetch', async () => {
     expect(await code(extract('select=emial'))).toBe('INVALID_QUERY')
   })
+
+  it('serves a second read of the same sheet from cache', async () => {
+    let calls = 0
+    const fetchImpl = (async () => {
+      calls += 1
+      return new Response(CSV, {
+        status: 200,
+        headers: { 'content-type': 'text/csv' },
+      })
+    }) as unknown as typeof fetch
+
+    const first = await extractSheet(URL, { fetchImpl, persist: false })
+    const second = await extractSheet(URL, { fetchImpl, persist: false })
+
+    expect(calls).toBe(1)
+    expect(second.data).toEqual(first.data)
+  })
+
+  it('still applies the query on a cached read', async () => {
+    // The cache holds the parsed sheet, not the query result, so a different
+    // query has to be applied to the cached rows rather than served from a
+    // previously cached answer.
+    let calls = 0
+    const fetchImpl = (async () => {
+      calls += 1
+      return new Response(CSV, {
+        status: 200,
+        headers: { 'content-type': 'text/csv' },
+      })
+    }) as unknown as typeof fetch
+
+    const all = await extractSheet(URL, { fetchImpl, persist: false })
+    const filtered = await extractSheet(URL, {
+      fetchImpl,
+      persist: false,
+      query: parseRowQuery(new URLSearchParams('where=role=Designer')),
+    })
+
+    expect(calls).toBe(1)
+    expect(all.data).toHaveLength(3)
+    expect(filtered.rowCount).toBe(1)
+    expect(filtered.data).toEqual([
+      {
+        name: 'Rahul',
+        email: 'rahul@example.com',
+        role: 'Designer',
+        amount: '25',
+      },
+    ])
+  })
 })
 
 describe.skipIf(!hasDatabase)('extractSheet with a database', () => {
   let result: ExtractionDetail
 
   beforeAll(async () => {
+    // `beforeAll` runs before this file's first `beforeEach`, so a cached sheet
+    // from an earlier block would still be warm here.
+    clearSheetCache()
     result = await extractSheet(URL, {
       fetchImpl: mockFetch(
         'name,email,role\nAnsh,ansh@example.com,Developer\nRahul,rahul@example.com,Designer',

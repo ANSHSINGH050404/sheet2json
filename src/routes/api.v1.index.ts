@@ -2,6 +2,7 @@ import { createFileRoute } from '@tanstack/react-router'
 
 import { CORS_HEADERS, corsPreflight } from '#server/api/cors'
 import { apiJson } from '#server/api/response'
+import { QUERY_MAX_LIMIT } from '#lib/constants'
 import {
   isGoogleAuthConfigured,
   RATE_LIMIT_PER_IP,
@@ -40,7 +41,16 @@ export const Route = createFileRoute('/api/v1/')({
                 query: {
                   url: 'required - the Google Sheets URL',
                   format: 'optional - json (default), csv, ndjson',
+                  select:
+                    'optional - comma-separated columns to keep, in order',
+                  where:
+                    'optional - one filter, e.g. role=Developer. Operators: = != ~ > >= < <=. Repeat to AND.',
+                  sort: 'optional - columns to order by; a leading - sorts descending',
+                  limit: `optional - most rows to return, 1..${QUERY_MAX_LIMIT}`,
                 },
+                queryOrder: 'where, then sort, then limit, then select',
+                queryNote:
+                  'rowCount reports the rows returned, not rows fetched. An unknown column is INVALID_QUERY, not an empty result.',
                 auth: 'optional',
               },
               {
