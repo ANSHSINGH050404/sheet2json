@@ -3,7 +3,13 @@ import { useState } from 'react'
 
 import { CodeBlock } from '#components/code-block'
 import { useSessionUser } from '#hooks/use-session'
+import { SITE_URL, socialMeta } from '#lib/site'
 import { isGoogleAuthConfigured } from '#server/config'
+
+const TITLE = 'API reference - Sheet2JSON'
+
+const DESCRIPTION =
+  'Read any Google Sheet you can access as JSON, CSV or NDJSON. One request, no SDK. Full reference for the Sheet2JSON REST API.'
 
 /**
  * `/docs` - the API reference.
@@ -11,8 +17,21 @@ import { isGoogleAuthConfigured } from '#server/config'
  * Written as a page rather than a generated OpenAPI document because the thing a
  * new user needs is a copy-pasteable `curl`, not a schema. `GET /api/v1` returns
  * the same information as JSON for tools that want to read it programmatically.
+ *
+ * The card matters more here than on most pages: this is the link a developer
+ * pastes into a thread, and it is the one most likely to be shared on its own.
  */
-export const Route = createFileRoute('/docs')({ component: DocsPage })
+export const Route = createFileRoute('/docs')({
+  head: () => ({
+    meta: [
+      { title: TITLE },
+      { name: 'description', content: DESCRIPTION },
+      { property: 'og:url', content: `${SITE_URL}/docs` },
+      ...socialMeta(TITLE, DESCRIPTION),
+    ],
+  }),
+  component: DocsPage,
+})
 
 function DocsPage() {
   const session = useSessionUser()

@@ -1,5 +1,6 @@
 import { createFileRoute } from '@tanstack/react-router'
 
+import { SITE_URL, socialMeta } from '#lib/site'
 import { BentoGrid } from '#components/landing/bento'
 import { ClientStrip, Hero } from '#components/landing/hero'
 import { CodeShowcase } from '#components/landing/code-showcase'
@@ -7,18 +8,22 @@ import { FinalCta } from '#components/landing/final-cta'
 import { Section, SectionHeading } from '#components/landing/section'
 import { Steps } from '#components/landing/steps'
 
+const TITLE = 'Sheet2JSON - turn a Google Sheet into a JSON endpoint'
+
+const DESCRIPTION =
+  'Paste a Google Sheets link and get structured JSON, or call one REST endpoint from a script, a webhook or a cron job. Public sheets need no account.'
+
 export const Route = createFileRoute('/')({
   head: () => ({
     meta: [
-      {
-        title: 'Sheet2JSON - turn a Google Sheet into a JSON endpoint',
-      },
-      {
-        name: 'description',
-        content:
-          'Paste a Google Sheets link and get structured JSON, or call one REST endpoint from a script, a webhook or a cron job. Public sheets need no account.',
-      },
+      { title: TITLE },
+      { name: 'description', content: DESCRIPTION },
+      { property: 'og:url', content: SITE_URL },
+      ...socialMeta(TITLE, DESCRIPTION),
     ],
+    // The landing page is the only page that is a duplicate of anything else, so
+    // this is the only place a canonical belongs.
+    links: [{ rel: 'canonical', href: SITE_URL }],
   }),
   component: LandingPage,
 })

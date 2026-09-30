@@ -88,14 +88,6 @@ Project Settings. PostHog tracks route categories, extraction completion,
 assistant usage, share copies, and downloads. Autocapture and session replay are
 disabled; prompts, sheet rows, and sheet URLs are not sent.
 
-Vercel Web Analytics is also installed. Enable it in the Vercel project's
-**Analytics** settings; no Vercel key is needed. Its pageview events have query
-strings removed and history record IDs normalized before they are sent.
-
-Vercel Web Analytics is also installed; enable it under your Vercel project's
-**Analytics** settings. Its pageview events have query strings removed and
-history IDs normalized before they are sent.
-
 ## Using the API
 
 Create a key in **Settings** after signing in. Keys are shown once, at creation,
@@ -223,6 +215,8 @@ bun run build          # production build
 bun run typecheck      # tsc --noEmit
 bun run lint           # eslint
 bun run format         # prettier + eslint --fix
+bun run check          # prettier --check
+bun run og:image       # regenerate public/og.png, the social preview card
 bun test               # unit and integration tests
 ```
 
@@ -255,33 +249,56 @@ this app uses is unprefixed, so it stays server-only.
 If you add Google sign-in, add
 `https://YOUR_DOMAIN/auth/google/callback` to the OAuth client's redirect URIs.
 
-### CI/CD
+### CI
 
-`.github/workflows/ci.yml` has two jobs.
+`.github/workflows/ci.yml` has one job, `verify`, and it runs on every push and
+every pull request: install, `prisma generate`, `typecheck`, `lint`, `check`
+(prettier), `bun test` and `bun run build`.
 
-`verify` runs on every push and pull request: install, `prisma generate`,
-`typecheck`, `lint`, `check` (prettier), `bun test` and `bun run build`. It needs
-no database — the integration tests skip themselves when `DATABASE_URL` is
-unset, so CI cannot write to production. The generated Prisma client is
+It needs no database — the integration tests skip themselves when `DATABASE_URL`
+is unset, so CI cannot write to production. The generated Prisma client is
 committed and ignored by prettier, so a client version bump cannot fail the
 formatting gate.
 
-`deploy` needs `verify` to pass and runs only on a push to `master`: it applies
-`prisma migrate deploy` to production, then `vercel deploy --prod`. Add these
-repository secrets under **Settings > Secrets and variables > Actions**:
+### Deploys and migrations
 
-| Secret              | Value                                                      |
-| ------------------- | ---------------------------------------------------------- |
-| `DATABASE_URL`      | the production PostgreSQL connection string                |
-| `VERCEL_TOKEN`      | a Vercel access token (Vercel → Account Settings → Tokens) |
-| `VERCEL_ORG_ID`     | from `.vercel/project.json` after linking the project      |
-| `VERCEL_PROJECT_ID` | from `.vercel/project.json` after linking the project      |
+Deployment is Vercel's job, not CI's: the project is linked to the GitHub repo,
+so a merge to `master` deploys to production on its own. The repository needs no
+deployment secrets, and CI has nothing to authenticate as.
 
-Migrations run before the deploy, not after: new code must not reach production
-before the schema it expects. Keep every migration backwards compatible until
-the deploy is green, because a failed deploy leaves the previous release running
-against a newer schema.
+Migrations are applied by hand, before merging the code that needs them:
 
-If you would rather not run migrations from CI, delete the `deploy` job's
-migration step and turn off Vercel's own Git integration to avoid deploying the
-same commit twice.
+```bash
+bun run db:deploy
+```
+
+That ordering matters, because Vercel deploys from the merge commit and nothing
+sequences the two. Running the migration first means new code never reaches
+production before the schema it expects.
+
+**Keep every migration backwards compatible.** A migration is applied while the
+previous release is still serving traffic, so a schema change that the running
+code cannot handle takes the site down. Add the column, deploy the code that
+reads it, then drop the old one in a later release.
+
+If you would rather CI own deployment and migrations together, add a `deploy`
+job gated on `verify` that runs `prisma migrate deploy` and `vercel deploy --prod`
+with four repository secrets under **Settings > Secrets and variables > Actions**:
+`DATABASE_URL`, `VERCEL_TOKEN`, `VERCEL_ORG_ID` and `VERCEL_PROJECT_ID`. Turn off
+Vercel's Git integration at the same time, or the same commit deploys twice.
+
+### The social preview card
+
+`public/og.png` is the card every share renders — on X, LinkedIn, Slack, and the
+Product Hunt listing. It is generated, not drawn by hand:
+
+```bash
+bun run og:image
+```
+
+The script in `scripts/generate-og-image.ts` builds the card as SVG and rasterises
+it with `sharp` at 4x, downsampled to 1200x630. Change the colours or the preview
+rows at the top of that file and re-run. `src/lib/site.ts` holds the absolute URL
+and the description, and `src/lib/site.test.ts` checks the things that silently
+break a preview: a relative image URL, the wrong aspect ratio, a description that
+gets truncated.

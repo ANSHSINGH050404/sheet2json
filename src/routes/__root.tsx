@@ -22,6 +22,7 @@ import { ThemeToggle } from '#components/theme-toggle'
 import { sessionQueryKey, useSessionUser } from '#hooks/use-session'
 import { sanitizeAnalyticsUrl } from '#lib/analytics'
 import { unwrap } from '#lib/format'
+import { SITE_DESCRIPTION, SITE_NAME, socialMeta } from '#lib/site'
 import { THEME_SCRIPT } from '#lib/theme'
 import { signOutFn } from '#server/api/auth'
 
@@ -31,12 +32,14 @@ export const Route = createRootRoute({
       { charSet: 'utf-8' },
       { name: 'viewport', content: 'width=device-width, initial-scale=1' },
       { name: 'referrer', content: 'strict-origin' },
-      { title: 'Sheet2JSON' },
-      {
-        name: 'description',
-        content:
-          'Extract Google Sheets into structured JSON. Paste a link, or pull any sheet into your code with a REST API and your own API key.',
-      },
+      { title: SITE_NAME },
+      { name: 'description', content: SITE_DESCRIPTION },
+      /**
+       * A default preview for every route. A route that sets its own title or
+       * description - the landing page, say - overrides these, so sharing
+       * `/docs` or `/extract` still unfurls a card instead of a bare link.
+       */
+      ...socialMeta(SITE_NAME, SITE_DESCRIPTION),
     ],
     links: [{ rel: 'stylesheet', href: appCss }],
     // Runs before the body is parsed, so the stored theme is already on <html>
